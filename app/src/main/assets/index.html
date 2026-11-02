@@ -106,7 +106,8 @@ h1 b{color:var(--amber);font-weight:800}
 .gas-head span{font-family:var(--mono);color:var(--amber)}
 .graph-wrap{position:relative;height:210px}
 #graph,#tGraph{width:100%;height:100%;display:block}
-.stage{order:0}#titPanel,#heatPanel,#qaPanel{order:1}
+.stage{order:0}#titPanel,#heatPanel,#qaPanel,#sepPanel{order:1}
+#spChips:empty{display:none}
 .qa-lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;gap:5px}
 .chp{background:var(--panel-2);border:2px solid var(--line);border-radius:10px;padding:5px 9px;font-family:var(--mono);font-size:.85rem;font-weight:700}
@@ -274,6 +275,7 @@ table.tt{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numer
       <button data-mode="titration" aria-pressed="false">Titration</button>
       <button data-mode="heat" aria-pressed="false">Bunsen</button>
       <button data-mode="qa" aria-pressed="false">Salt tests</button>
+      <button data-mode="sep" aria-pressed="false">Separation</button>
     </div>
     <button class="chip" id="missionsBtn">★ Missions <b id="mCount">0/14</b></button>
   </header>
@@ -289,6 +291,7 @@ table.tt{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numer
           <div class="ro" id="roGas" hidden><span class="k">Gas</span><b id="gVal">0 cm³</b></div>
           <div class="ro" id="roFlame" hidden><span class="k">Bunsen</span><b id="fVal">Off</b></div>
           <div class="ro" id="roMass" hidden><span class="k">Balance</span><b id="mVal">– g</b></div>
+          <div class="ro" id="roSep" hidden><span class="k">Thermometer</span><b id="sepV">20 °C</b></div>
           <div class="ro" id="roBur" hidden><span class="k">Burette</span><b id="bVal">0.00 cm³</b></div>
         </div>
         <div class="tools">
@@ -313,6 +316,20 @@ table.tt{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numer
           <button class="tst" data-test="lime">🥛 Limewater</button>
           <button class="tst empty" id="emptyGas">↺ Empty &amp; new run</button>
         </div>
+      </div>
+
+      <div class="panel tit-grid" id="sepPanel" hidden>
+        <div class="tabs" id="spTabs" role="tablist" style="margin-bottom:0">
+          <button class="tab" role="tab" data-sa="sol">Soluble salt</button>
+          <button class="tab" role="tab" data-sa="ins">Insoluble salt</button>
+          <button class="tab" role="tab" data-sa="dis">Distillation</button>
+          <button class="tab" role="tab" data-sa="fra">Fractional</button>
+          <button class="tab" role="tab" data-sa="sepf">Separating funnel</button>
+        </div>
+        <div class="chips" id="spChips"></div>
+        <div class="tctrl" id="spBtns"></div>
+        <p class="tmsg" id="spStatus"></p>
+        <div class="graph-wrap" id="spGraphWrap" hidden style="height:170px"><canvas id="spGraph" style="width:100%;height:100%;display:block"></canvas></div>
       </div>
 
       <div class="panel tit-grid" id="qaPanel" hidden>
@@ -867,6 +884,7 @@ let shake=0;
 function camGoals(){
   const a=camera.aspect||1;
   if(G.mode==='beaker'){cam.tLook.set(0,1.25,0);cam.tR=a<.8?9.6:7.4}
+  else if(G.mode==='sep'){const L=SPCAM[SP.act];cam.tLook.set(L[0],L[1],0);cam.tR=a<.8?L[2]*1.45:a<1.3?L[2]*1.15:L[2]}
   else if(G.mode==='qa'){cam.tLook.set(.1,1.9,0);cam.tR=a<.8?11.5:a<1.3?8.8:7.6}
   else if(G.mode==='heat'){cam.tLook.set(.45,1.75,0);cam.tR=a<.8?11.5:a<1.3?9:7.8}
   else if(G.mode==='titration'){cam.tLook.set(.35,3.95,0);cam.tR=a<.8?17.5:a<1.3?13.5:12}
@@ -1075,6 +1093,11 @@ const MISSIONS=[
   {id:'qa_id',t:'Identify an unknown salt',h:'Salt tests → Game. Run tests, then pick the cation and the anion.'},
   {id:'qa_fast',t:'Identify a salt in 4 tests or fewer',h:'Plan your tests. The colour of the solution is a clue too.'},
   {id:'qa_five',t:'Identify 5 unknown salts',h:'Keep going in Salt tests → Game.'},
+  {id:'sep_sol',t:'Make crystals of a soluble salt',h:'Separation → Soluble salt: excess base, filter, heat to the crystallisation point, cool, dry.'},
+  {id:'sep_ins',t:'Make a pure insoluble salt',h:'Separation → Insoluble salt: mix, filter, wash, dry.'},
+  {id:'sep_dis',t:'Distil 20 cm³ of pure water',h:'Separation → Distillation. Turn the condenser water on first.'},
+  {id:'sep_fra',t:'Collect a fraction that is at least 90% ethanol',h:'Separation → Fractional. Change the receiver when the temperature rises.'},
+  {id:'sep_funnel',t:'Separate oil and water cleanly',h:'Separation → Separating funnel. Run off all the water but no oil.'},
   {id:'unknown',t:'Calculate the unknown concentration',h:'Use your mean titre and the equation. Type your answer in the titration panel and press Check.'},
 ];
 let done={};try{done=JSON.parse(localStorage.getItem('rlab-missions')||'{}')||{}}catch(e){}
@@ -1541,28 +1564,29 @@ $('mClose').onclick=()=>$('mOv').hidden=true;
 $('mOv').addEventListener('click',e=>{if(e.target.id==='mOv')$('mOv').hidden=true});
 
 function setMode(m){
-  if(busy||HB.busy||QA.busy)return;
+  if(busy||HB.busy||QA.busy||SP.busy)return;
   G.mode=m;
   document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===m));
-  const tit=m==='titration',gas=m==='syringe'||m==='water',heat=m==='heat',qa=m==='qa';
+  const tit=m==='titration',gas=m==='syringe'||m==='water',heat=m==='heat',qa=m==='qa',sep=m==='sep';
   if(!heat)HB.gas=false;
   VS=m==='beaker'?VB:VF;
   cam.tTh=m==='beaker'?.3:tit?.18:.1;cam.tPh=m==='beaker'?1.15:tit?1.3:1.18;
   beakerG.visible=m==='beaker';flaskG.visible=m!=='beaker';bung.visible=gas;
   vg.position.set(gas?FX0:0,tit?.06:0,0);
-  syrG.visible=m==='syringe';watG.visible=m==='water';titG.visible=tit;decor.visible=!tit;vg.visible=!heat&&!qa;heatG.visible=heat;qaG.visible=qa;
+  syrG.visible=m==='syringe';watG.visible=m==='water';titG.visible=tit;decor.visible=!tit;vg.visible=!heat&&!qa&&!sep;heatG.visible=heat;qaG.visible=qa;sepG.visible=sep;
   CBUB.clear();
   T.flow='close';
   wash();emptyCollector();G.hist=[];
   $('gasPanel').hidden=!gas;$('roGas').hidden=!gas;$('titPanel').hidden=!tit;$('roBur').hidden=!tit;
-  $('heatPanel').hidden=!heat;$('qaPanel').hidden=!qa;$('shelfPanel').hidden=heat||qa;['roPH','roT','roV'].forEach(i=>$(i).hidden=heat||qa);$('roFlame').hidden=!heat;$('roMass').hidden=!(heat&&HB.act==='solid');$('contents').hidden=heat||qa;
+  $('heatPanel').hidden=!heat;$('qaPanel').hidden=!qa;$('sepPanel').hidden=!sep;$('shelfPanel').hidden=heat||qa||sep;['roPH','roT','roV'].forEach(i=>$(i).hidden=heat||qa||sep);$('roFlame').hidden=!heat;$('roMass').hidden=!(heat&&HB.act==='solid');$('contents').hidden=heat||qa||sep;$('roSep').hidden=true;
   camGoals();drawGraph(true);
   if(tit)setupTitration(true);
   if(heat){cam.tTh=.25;cam.tPh=1.22;heatUI();explainForce('bunsen')}
   if(qa){cam.tTh=.12;cam.tPh=1.22;qaEnter()}
+  if(sep){cam.tTh=.12;cam.tPh=1.2;spSetAct(SP.act)}
 }
 $('modeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.mode!==G.mode){setMode(b.dataset.mode);
-  toast(b.dataset.mode==='qa'?'Salt tests: each test uses a fresh portion of the salt solution.':b.dataset.mode==='heat'?'Bunsen burner: turn the gas on, then open the air hole for a hot blue flame.':b.dataset.mode==='titration'?'Titration: open the burette tap, watch the indicator, and stop on the drop where the colour changes.':b.dataset.mode==='syringe'?'Gas syringe: the plunger moves out as gas is made. Add a reactant pair to the flask.':b.dataset.mode==='water'?'Water displacement: gas pushes water out of the upside-down measuring cylinder.':'Open beaker: great for indicators and Group 1 metals.')}});
+  toast(b.dataset.mode==='sep'?'Separation: make salts, filter, distil and use a separating funnel.':b.dataset.mode==='qa'?'Salt tests: each test uses a fresh portion of the salt solution.':b.dataset.mode==='heat'?'Bunsen burner: turn the gas on, then open the air hole for a hot blue flame.':b.dataset.mode==='titration'?'Titration: open the burette tap, watch the indicator, and stop on the drop where the colour changes.':b.dataset.mode==='syringe'?'Gas syringe: the plunger moves out as gas is made. Add a reactant pair to the flask.':b.dataset.mode==='water'?'Water displacement: gas pushes water out of the upside-down measuring cylinder.':'Open beaker: great for indicators and Group 1 metals.')}});
 
 /* ---------- graph ---------- */
 let graphAcc=0;
@@ -2511,6 +2535,454 @@ function qaUpdate(dt){
   qBunLight.intensity=QA.flame?.8+QA.tintS:0;qBunLight.color.set(0x7f8cff).lerp(tc,QA.tintS);
   if(QA.bubR>20&&Math.random()<dt*6)noise(.12,.04,'bandpass',3500);
 }
+
+/* =====================================================================
+   SALTS & SEPARATION TECHNIQUES
+   ===================================================================== */
+const sepG=new THREE.Group();scene.add(sepG);sepG.visible=false;
+const SP={act:'sol',seq:null,si:0,st:0,busy:false,ui:0};
+const SPCAM={sol:[0,1.45,7.4],ins:[.2,1.1,6.8],dis:[-.4,2.1,9.2],fra:[-.4,2.6,10.4],sepf:[.1,1.6,6.6]};
+const MM=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x||0,y||0,z||0);return m};
+const lmat=(c,op)=>new THREE.MeshPhongMaterial({color:new THREE.Color(c),transparent:true,opacity:op,shininess:90,depthWrite:false});
+const metalM=new THREE.MeshPhongMaterial({color:0xb8bec8,shininess:90}),darkM=new THREE.MeshPhongMaterial({color:0x2f3440}),hoseM=new THREE.MeshLambertMaterial({color:0xd8692c});
+function gtube(pts,r,mat){return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p=>V3(p[0],p[1],p[2]||0)),false,'centripetal'),64,r,10,false),mat||glassMat)}
+function mkBunsen(x,z){const g=new THREE.Group();g.position.set(x,0,z||0);
+  g.add(MM(new THREE.CylinderGeometry(.28,.33,.08,24),darkM,0,.04));
+  g.add(MM(new THREE.CylinderGeometry(.075,.08,.95,16),metalM,0,.55));
+  g.add(MM(new THREE.CylinderGeometry(.095,.095,.13,16),new THREE.MeshPhongMaterial({color:0xc9a24a}),0,.22));
+  const fl=new THREE.Group();fl.position.y=1.02;fl.add(coneUp(.14,.62,0x5a6cff,.45),coneUp(.075,.26,0x8fd0ff,.8));fl.scale.set(1,.24,1);fl.visible=false;g.add(fl);g.userData.fl=fl;return g}
+function mkTripod(x,h,z){const g=new THREE.Group();g.position.set(x,0,z||0);
+  const tm=new THREE.MeshPhongMaterial({color:0x4a4f5a});
+  const ring=MM(new THREE.TorusGeometry(.5,.03,8,32),tm,0,h);ring.rotation.x=Math.PI/2;g.add(ring);
+  for(let i=0;i<3;i++){const a=i*2.094+.5,t=V3(Math.cos(a)*.5,h,Math.sin(a)*.5),b=V3(Math.cos(a)*.72,0,Math.sin(a)*.72);
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,t.distanceTo(b),6),tm);leg.position.copy(t).add(b).multiplyScalar(.5);leg.quaternion.setFromUnitVectors(V3(0,1,0),t.clone().sub(b).normalize());g.add(leg)}
+  const gm=gauzeMat.clone();const gz=MM(new THREE.PlaneGeometry(1.25,1.25),gm,0,h+.03);gz.rotation.x=-Math.PI/2;g.add(gz);g.userData.gm=gm;return g}
+function mkBeaker(r,h,col,op){const g=new THREE.Group();
+  const w=MM(new THREE.CylinderGeometry(r,r,h,32,1,true),glassMat,0,h/2);w.renderOrder=10;g.add(w);
+  const bt=MM(new THREE.CircleGeometry(r,32),glassMat,0,.01);bt.rotation.x=-Math.PI/2;g.add(bt);
+  const lp=MM(new THREE.TorusGeometry(r,.02,6,32),rimMat,0,h);lp.rotation.x=Math.PI/2;g.add(lp);
+  const geo=new THREE.CylinderGeometry(r-.03,r-.03,1,28);geo.translate(0,.5,0);
+  const mat=lmat(col,op),liq=MM(geo,mat,0,.015);liq.renderOrder=3;g.add(liq);
+  const o={g,liq,mat,h,r,lv:0,set(lv){o.lv=lv;liq.visible=lv>.005;liq.scale.y=Math.max(.001,lv)}};o.set(0);return o}
+function mkFunnel(){const g=new THREE.Group();
+  const cg=new THREE.ConeGeometry(.5,.62,32,1,true);cg.rotateX(Math.PI);cg.translate(0,.31,0);const c=MM(cg,glassMat);c.renderOrder=10;g.add(c);
+  const lp=MM(new THREE.TorusGeometry(.5,.02,6,32),rimMat,0,.62);lp.rotation.x=Math.PI/2;g.add(lp);
+  g.add(MM(new THREE.CylinderGeometry(.045,.035,.6,12),glassMat,0,-.29));
+  const pg=new THREE.ConeGeometry(.45,.56,24,1,true);pg.rotateX(Math.PI);pg.translate(0,.32,0);
+  const paper=MM(pg,new THREE.MeshLambertMaterial({color:0xf4f2ea,side:THREE.DoubleSide,transparent:true,opacity:.9}));paper.renderOrder=9;g.add(paper);
+  const rg=new THREE.ConeGeometry(.24,.22,24);rg.rotateX(Math.PI);rg.translate(0,.16,0);
+  const resMat=new THREE.MeshLambertMaterial({color:0x222222,flatShading:true});const res=MM(rg,resMat);res.visible=false;res.renderOrder=11;g.add(res);
+  const lg=new THREE.ConeGeometry(.42,.5,24);lg.rotateX(Math.PI);lg.translate(0,.25,0);
+  const liqMat=lmat('#3d8fe6',.6),liq=MM(lg,liqMat,0,.06);liq.visible=false;liq.renderOrder=12;g.add(liq);
+  return{g,res,resMat,liq,liqMat,paper}}
+function mkStand(x,z,h){const g=new THREE.Group();g.position.set(x,0,z||0);g.add(MM(new THREE.BoxGeometry(.9,.06,.7),baseMat,0,.03));g.add(MM(new THREE.CylinderGeometry(.04,.04,h,10),standMat,0,h/2));return g}
+function mkArm(x0,x1,y,z,ringR){const g=new THREE.Group();g.add(MM(new THREE.BoxGeometry(Math.abs(x1-x0),.06,.06),standMat,(x0+x1)/2,y,z||0));
+  if(ringR){const r=MM(new THREE.TorusGeometry(ringR,.03,6,28),standMat,x1,y,0);r.rotation.x=Math.PI/2;g.add(r);if(z)g.add(MM(new THREE.BoxGeometry(.06,.06,Math.abs(z)),standMat,x1+ringR,y,z/2))}
+  return g}
+function mkBasin(){const g=new THREE.Group(),A=1.2,R0=.6,D=.3,prof=a=>[Math.max(.001,R0*Math.sin(a)/Math.sin(A)),D*(1-Math.cos(a))/(1-Math.cos(A))];
+  const pts=[];for(let i=0;i<=14;i++){const[r,y]=prof(i/14*A);pts.push(new THREE.Vector2(r,y))}
+  const bm=new THREE.MeshPhongMaterial({color:0xf4f2ee,shininess:70,side:THREE.DoubleSide});g.add(new THREE.Mesh(new THREE.LatheGeometry(pts,40),bm));
+  const lm=lmat('#3d8fe6',.6);let liq=null,lh=-1;
+  const o={g,bm,lm,set(h){if(Math.abs(h-lh)<.003)return;lh=h;if(liq){g.remove(liq);liq.geometry.dispose()}if(h<.004){liq=null;return}
+    const lp=[];for(let i=0;i<=12;i++){const a=i/12*A;const[r,y]=prof(a);if(y>h)break;lp.push(new THREE.Vector2(Math.max(.001,r*.96),y+.006))}
+    const aH=Math.acos(1-h*(1-Math.cos(A))/D);lp.push(new THREE.Vector2(R0*Math.sin(aH)/Math.sin(A)*.96,h),new THREE.Vector2(.001,h));
+    liq=new THREE.Mesh(new THREE.LatheGeometry(lp,32),lm);liq.renderOrder=3;g.add(liq)}};
+  return o}
+function mkSpatula(){const g=new THREE.Group();g.add(MM(new THREE.BoxGeometry(1.1,.025,.06),metalM,.55,0));g.add(MM(new THREE.BoxGeometry(.22,.02,.12),metalM,0,0));g.visible=false;return g}
+function streamMesh(col){const sg=new THREE.CylinderGeometry(.03,.035,1,8);sg.translate(0,-.5,0);const m=new THREE.Mesh(sg,lmat(col||'#dfeaff',.75));m.visible=false;m.renderOrder=8;return m}
+function setStream(m,from,toY,col){m.visible=true;m.position.copy(from);m.scale.set(1,Math.max(.05,from.y-toY),1);if(col)m.material.color.set(col)}
+const actG={sol:new THREE.Group(),ins:new THREE.Group(),dis:new THREE.Group(),fra:new THREE.Group(),sepf:new THREE.Group()};
+Object.values(actG).forEach(g=>{g.visible=false;sepG.add(g)});
+const DRIP=pool(30,()=>{const m=new THREE.Mesh(sph,lmat('#dfeaff',.85));m.renderOrder=8;return m},sepG);
+const SSTEAM=pool(60,()=>{const m=new THREE.Mesh(sph,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthWrite:false}));m.renderOrder=13;return m},sepG);
+const SBUB=pool(60,()=>{const m=new THREE.Mesh(sph,bubMat);m.renderOrder=6;return m},sepG);
+function drip(from,toY,col){const d=DRIP.get();d.on=true;d.vy=0;d.to=toY;d.m.position.copy(from);d.m.scale.set(.03,.04,.03);d.m.material.color.set(col||'#dfeaff');d.m.visible=true}
+function steam(x,y,z,op){const s=SSTEAM.get();s.on=true;s.t=0;s.life=rnd(1.4,2.4);s.op=op||.22;s.vx=rnd(-.1,.1);s.m.position.set(x,y,z);s.m.visible=true}
+function sbub(x,y,z,top){const b=SBUB.get();b.on=true;b.vy=rnd(.6,1.2);b.top=top;b.m.position.set(x,y,z);b.m.scale.setScalar(rnd(.015,.03));b.m.visible=true}
+function spPools(dt){
+  DRIP.forEach(d=>{if(!d.on)return;d.vy-=9*dt;d.m.position.y+=d.vy*dt;if(d.m.position.y<=d.to){d.on=false;d.m.visible=false}});
+  SSTEAM.forEach(s=>{if(!s.on)return;s.t+=dt;const k=s.t/s.life;s.m.position.y+=.5*dt;s.m.position.x+=s.vx*dt;s.m.scale.setScalar(.08+k*.35);s.m.material.opacity=s.op*(1-k)*Math.min(1,s.t*4);if(k>=1){s.on=false;s.m.visible=false}});
+  SBUB.forEach(b=>{if(!b.on)return;b.m.position.y+=b.vy*dt;if(b.m.position.y>=b.top){b.on=false;b.m.visible=false}});
+}
+const setFlame=(bun,on)=>{bun.userData.fl.visible=on};
+
+/* ---------- 1. Soluble salt ---------- */
+const SOLB={
+  CuO:{f:'CuO',n:'copper(II) oxide',col:'#1d1d1d',p:'copper(II) sulfate',pf:'CuSO₄',hyd:'CuSO₄·5H₂O',pcol:'#2f7fe0',xt:'#2f7fe0',dry:'#f1f0ea',
+    eq:'CuO(s) + H₂SO₄(aq) → CuSO₄(aq) + H₂O(l)',word:'copper(II) oxide + sulfuric acid → copper(II) sulfate + water',deh:'CuSO₄·5H₂O → CuSO₄ + 5H₂O'},
+  ZnCO3:{f:'ZnCO₃',n:'zinc carbonate',col:'#f4f4f0',p:'zinc sulfate',pf:'ZnSO₄',hyd:'ZnSO₄·7H₂O',pcol:'#e9eef5',xt:'#f4f6f8',dry:'#ffffff',fizz:1,
+    eq:'ZnCO₃(s) + H₂SO₄(aq) → ZnSO₄(aq) + H₂O(l) + CO₂(g)',word:'zinc carbonate + sulfuric acid → zinc sulfate + water + carbon dioxide',deh:'ZnSO₄·7H₂O → ZnSO₄ + 7H₂O'},
+  MgO:{f:'MgO',n:'magnesium oxide',col:'#f6f6f2',p:'magnesium sulfate',pf:'MgSO₄',hyd:'MgSO₄·7H₂O',pcol:'#e9eef5',xt:'#f4f6f8',dry:'#ffffff',
+    eq:'MgO(s) + H₂SO₄(aq) → MgSO₄(aq) + H₂O(l)',word:'magnesium oxide + sulfuric acid → magnesium sulfate + water',deh:'MgSO₄·7H₂O → MgSO₄ + 7H₂O'},
+};
+const S1={};
+const A1={};
+(function(){const g=actG.sol;
+  A1.tL=mkTripod(-1.7,1.15);A1.bL=mkBunsen(-1.7);A1.tR=mkTripod(1.6,1.15);A1.bR=mkBunsen(1.6);g.add(A1.tL,A1.bL,A1.tR,A1.bR);
+  A1.bk=mkBeaker(.4,.75,'#e6eef6',.4);A1.home=V3(-1.7,1.19,0);A1.bk.g.position.copy(A1.home);g.add(A1.bk.g);
+  A1.bas=mkBasin();A1.bas.g.position.set(1.6,1.19,0);g.add(A1.bas.g);
+  A1.rig=new THREE.Group();g.add(A1.rig);
+  A1.rig.add(mkStand(2.75,0,3.2),mkArm(2.75,1.6,2.42,0,.37));
+  A1.fun=mkFunnel();A1.fun.g.position.set(1.6,2.0,0);A1.rig.add(A1.fun.g);
+  A1.P=pool(90,()=>new THREE.Mesh(ico,new THREE.MeshLambertMaterial({color:0x1d1d1d,flatShading:true})),A1.bk.g);
+  A1.spat=mkSpatula();g.add(A1.spat);
+  A1.rod=MM(new THREE.CylinderGeometry(.018,.018,1.2,8),new THREE.MeshPhongMaterial({color:0xe8f0ff,transparent:true,opacity:.7}));A1.rod.visible=false;g.add(A1.rod);
+  A1.rodX=MM(new THREE.OctahedronGeometry(.04,0),new THREE.MeshPhongMaterial({color:0x2f7fe0}));A1.rodX.visible=false;g.add(A1.rodX);
+  A1.xt=new THREE.Group();A1.xt.position.set(1.6,1.2,0);g.add(A1.xt);A1.xtMat=new THREE.MeshPhongMaterial({color:0x2f7fe0,shininess:120,flatShading:true});
+  for(let i=0;i<34;i++){const r=Math.sqrt(Math.random())*.36,a=rnd(0,6.28);const m=new THREE.Mesh(new THREE.OctahedronGeometry(rnd(.035,.07),0),A1.xtMat);
+    m.position.set(Math.cos(a)*r,.02+r*r*.5+rnd(0,.03),Math.sin(a)*r);m.rotation.set(rnd(0,3),rnd(0,3),rnd(0,3));m.scale.y=rnd(.6,1.4);m.userData.d=Math.random();A1.xt.add(m)}
+  A1.str=streamMesh();g.add(A1.str);
+})();
+function solReset(){Object.assign(S1,{base:S1.base||'CuO',acid:4,added:0,dis:0,warm:false,stage:'react',V:0,heat:false,rod:false,cryst:0,over:false,done:false});
+  A1.bk.g.position.copy(A1.home);A1.bk.g.rotation.set(0,0,0);A1.bk.set(.38);A1.bk.mat.color.set('#e6eef6');A1.bk.mat.opacity=.4;
+  A1.P.clear();A1.rig.visible=false;A1.fun.res.visible=false;A1.fun.res.scale.setScalar(.01);A1.fun.liq.visible=false;
+  A1.bas.set(0);A1.xt.visible=false;A1.rod.visible=false;A1.rodX.visible=false;A1.str.visible=false;A1.spat.visible=false;
+  setFlame(A1.bL,false);setFlame(A1.bR,false);
+}
+function solColour(){const B=SOLB[S1.base],k=S1.dis/S1.acid;A1.bk.mat.color.set('#e6eef6').lerp(new THREE.Color(B.pcol),.85*k);A1.bk.mat.opacity=.4+.35*k*(B.pcol!=='#e9eef5'?1:0)}
+function solAct(id){const B=SOLB[S1.base];
+  if(id==='warm'){S1.warm=!S1.warm;setFlame(A1.bL,S1.warm);return}
+  if(id==='add'){if(S1.stage!=='react')return;
+    spSeq([qStep(.9,k=>{A1.spat.visible=true;const p=A1.home.clone().add(V3(.15,1.25,0));A1.spat.position.set(p.x+1.2*(1-Math.min(1,k*2)),p.y,0);A1.spat.rotation.z=k>.5?-(k-.5)*1.2:0;
+        if(k>.55&&!S1._dropped){S1._dropped=true;S1.added++;for(let i=0;i<14;i++){const q=A1.P.get();q.on=true;q.fall=true;q.m.material.color.set(B.col);q.m.position.set(rnd(-.12,.18),.9+rnd(0,.15),rnd(-.1,.1));q.m.scale.setScalar(rnd(.018,.03));q.vy=0;q.m.visible=true}}},
+      ()=>{A1.spat.visible=false;S1._dropped=false;
+        if(S1.added>S1.acid){explain('sep_excess');spMsg('Some solid stays at the bottom: the base is now in excess.')}
+        else spMsg(S1.warm?'It dissolves.':'It dissolves slowly. Warming the acid speeds this up.')})]);return}
+  if(id==='filter'){if(S1.stage!=='react')return;
+    if(S1.added<=S1.acid||S1.dis<S1.acid-.05){toast('Keep adding the base until some is left over (excess). That uses up all the acid.');SFX.no();return}
+    S1.warm=false;setFlame(A1.bL,false);A1.rig.visible=true;const to=V3(.92,2.75,0);
+    spSeq([qStep(1.1,k=>{const e=ease(k);A1.bk.g.position.lerpVectors(A1.home,to,e);A1.bk.g.rotation.z=-1.9*Math.max(0,(k-.5)*2)}),
+      qStep(2.6,k=>{const m=V3(1.6,2.62+.15,0);setStream(A1.str,m,2.2);A1.bk.set(.38*(1-k));A1.fun.liq.visible=true;A1.fun.liq.scale.setScalar(.2+.6*Math.sin(Math.PI*Math.min(1,k*1.2)));A1.fun.liqMat.color.set(B.pcol==='#e9eef5'?'#e6eef6':B.pcol);
+        A1.fun.res.visible=true;A1.fun.res.scale.setScalar(Math.max(.05,k));A1.fun.resMat.color.set(B.col);A1.P.forEach(q=>{if(q.on&&Math.random()<dt60(k))q.on=q.m.visible=false});
+        if(Math.random()<.5)drip(V3(1.6,1.42,0),1.2+.05,A1.bk.mat.color.getHexString&&('#'+A1.bk.mat.color.getHexString()));S1.V=22*k;A1.bas.lm.color.copy(A1.bk.mat.color);A1.bas.lm.opacity=Math.max(.45,A1.bk.mat.opacity)},
+        ()=>{A1.str.visible=false;A1.P.clear();A1.fun.liq.visible=false}),
+      qStep(1.1,k=>{const e=ease(k);A1.bk.g.rotation.z=-1.9*(1-e);A1.bk.g.position.lerpVectors(to,A1.home,e)},()=>{S1.stage='filtered';explain('sep_filter')})]);return}
+  if(id==='heat'){if(S1.stage!=='filtered'&&S1.stage!=='evap')return;S1.heat=!S1.heat;if(S1.heat)S1.stage='evap';setFlame(A1.bR,S1.heat);return}
+  if(id==='rod'){if(S1.stage!=='evap'||S1.over)return;
+    spSeq([qStep(1.3,k=>{A1.rod.visible=true;const y=1.2+.65+.6*(1-Math.sin(Math.PI*k));A1.rod.position.set(1.6+.1,y,0);A1.rod.rotation.z=.15;
+      if(k>.6&&S1.V<=8){A1.rodX.visible=true;A1.rodX.material.color.set(SOLB[S1.base].xt);A1.rodX.position.set(1.6+.1+.09*Math.sin(-.15),y-.58,0)}},
+      ()=>{A1.rod.visible=false;A1.rodX.visible=false;if(S1.V<=8){S1.rod=true;spMsg('Crystals form on the glass rod: this is the crystallisation point. Stop heating and leave it to cool.')}else spMsg('No crystals on the rod yet. Keep heating.')})]);return}
+  if(id==='cool'){if(S1.stage!=='evap'||S1.over)return;
+    if(S1.V>8){toast('The solution is too dilute: few crystals would form. Heat it until crystals appear on a glass rod.');SFX.no();return}
+    S1.heat=false;setFlame(A1.bR,false);A1.xt.visible=true;A1.xtMat.color.set(SOLB[S1.base].xt);
+    spSeq([qStep(4,k=>{S1.cryst=k;A1.xt.children.forEach(m=>{m.visible=m.userData.d<k;m.scale.x=m.scale.z=Math.min(1,k*1.5)});S1.V=Math.max(2,S1.V-dt60(k)*.02)},()=>{S1.stage='cryst';explain('sep_cryst')})]);return}
+  if(id==='dry'){if(S1.stage!=='cryst')return;
+    spSeq([qStep(1.2,k=>{A1.bas.set(.05*(1-k))},()=>{S1.stage='done';S1.V=0;A1.bas.set(0);explainForce('sep_sol_done');complete('sep_sol');spMsg(`Dry ${B.hyd} crystals.`)})]);return}
+  if(id==='reset'){solReset();spMsg('')}
+}
+const dt60=()=>1/60;
+function solUpdate(dt,sdt){const B=SOLB[S1.base];
+  const target=Math.min(S1.added,S1.acid);
+  if(S1.dis<target){S1.dis=Math.min(target,S1.dis+sdt*(S1.warm?1.1:.35));solColour();
+    if(B.fizz&&S1.stage==='react'&&Math.random()<dt*25)sbub(A1.home.x+rnd(-.25,.25),A1.home.y+.05,rnd(-.2,.2),A1.home.y+.38)}
+  // particles: falling, then shrink as they dissolve; keep the undissolved amount visible
+  const undis=S1.added-S1.dis;let want=S1.stage==='react'?Math.round(undis*14):0,on=0;
+  A1.P.forEach(q=>{if(!q.on)return;on++;if(q.fall){q.vy-=6*dt;q.m.position.y+=q.vy*dt;if(q.m.position.y<=.05){q.m.position.y=.04+rnd(0,.03);q.fall=false}}});
+  if(on>want){let n=on-want;A1.P.forEach(q=>{if(n>0&&q.on&&!q.fall){q.on=false;q.m.visible=false;n--}})}
+  if(S1.warm&&S1.stage==='react'&&Math.random()<dt*2)steam(A1.home.x,A1.home.y+.45,0,.12);
+  // evaporation
+  if(S1.stage==='evap'&&S1.heat){S1.V=Math.max(0,S1.V-sdt*(S1.V>10?1.1:.3));if(Math.random()<dt*14)steam(1.6+rnd(-.25,.25),1.3,rnd(-.2,.2),.25);
+    if(S1.V<=.5&&!S1.over){S1.over=true;S1.heat=false;setFlame(A1.bR,false);A1.xt.visible=true;A1.xtMat.color.set(B.dry);A1.xt.children.forEach(m=>{m.visible=true;m.scale.set(1.2,.35,1.2)});explainForce('sep_overdry');spMsg('Heated to dryness: only powder is left. Press Start again.')}}
+  if(S1.stage!=='done'&&(S1.V>0||S1.stage!=='react')){const c=Math.min(4,22/Math.max(S1.V,1));A1.bas.set(S1.over?0:.24*Math.pow(Math.max(0,S1.V)/22,.6));
+    const pc=new THREE.Color(B.pcol);A1.bas.lm.color.set('#e6eef6').lerp(pc,Math.min(1,.55+.12*c));A1.bas.lm.opacity=Math.min(.92,(B.pcol==='#e9eef5'?.4:.6)+.06*c)}
+  A1.tR.userData.gm.emissive.setRGB(1,.3,.05).multiplyScalar(S1.heat?.35:0);A1.tL.userData.gm.emissive.setRGB(1,.3,.05).multiplyScalar(S1.warm?.35:0);
+}
+
+/* ---------- 2. Insoluble salt ---------- */
+const INSP={
+  BaSO4:{a:['barium chloride','BaCl₂'],b:['sodium sulfate','Na₂SO₄'],p:'barium sulfate',pf:'BaSO₄',col:'#f4f4f4',w:'white',filt:'sodium chloride',eq:'BaCl₂(aq) + Na₂SO₄(aq) → BaSO₄(s) + 2NaCl(aq)',ion:'Ba²⁺(aq) + SO₄²⁻(aq) → BaSO₄(s)'},
+  AgCl:{a:['silver nitrate','AgNO₃'],b:['sodium chloride','NaCl'],p:'silver chloride',pf:'AgCl',col:'#f2f2f2',w:'white',filt:'sodium nitrate',eq:'AgNO₃(aq) + NaCl(aq) → AgCl(s) + NaNO₃(aq)',ion:'Ag⁺(aq) + Cl⁻(aq) → AgCl(s)'},
+  PbI2:{a:['lead(II) nitrate','Pb(NO₃)₂'],b:['potassium iodide','KI'],p:'lead(II) iodide',pf:'PbI₂',col:'#f2d33a',w:'bright yellow',filt:'potassium nitrate',eq:'Pb(NO₃)₂(aq) + 2KI(aq) → PbI₂(s) + 2KNO₃(aq)',ion:'Pb²⁺(aq) + 2I⁻(aq) → PbI₂(s)'},
+};
+const S2={pair:'BaSO4'};const A2={};
+(function(){const g=actG.ins;
+  A2.a=mkBeaker(.4,.75,'#eef3f8',.35);A2.aHome=V3(-1.7,0,0);A2.a.g.position.copy(A2.aHome);
+  A2.b=mkBeaker(.3,.6,'#eef3f8',.35);A2.bHome=V3(-.65,0,.35);A2.b.g.position.copy(A2.bHome);g.add(A2.a.g,A2.b.g);
+  g.add(mkStand(2.45,0,2.6),mkArm(2.45,1.4,1.97,0,.37));
+  A2.fun=mkFunnel();A2.fun.g.position.set(1.4,1.55,0);g.add(A2.fun.g);
+  const pts=[V2(.001,.01),V2(.42,.01),V2(.45,.05)];for(let y=.1;y<=.7;y+=.1)pts.push(V2(.45-.33*(y/.7),y));pts.push(V2(.12,.75),V2(.12,1.0),V2(.14,1.0));
+  const fl=new THREE.Mesh(new THREE.LatheGeometry(pts,32),glassMat);fl.renderOrder=10;fl.position.set(1.4,0,0);g.add(fl);
+  A2.fliq=MM(new THREE.CylinderGeometry(.4,.42,1,24),lmat('#eef3f8',.4),1.4,0);A2.fliq.geometry.translate(0,.5,0);A2.fliq.renderOrder=3;g.add(A2.fliq);
+  A2.P=pool(90,()=>new THREE.Mesh(ico,new THREE.MeshLambertMaterial({color:0xf4f4f4})),A2.a.g);
+  A2.str=streamMesh();g.add(A2.str);
+  A2.wash=new THREE.Group();A2.wash.add(MM(new THREE.CylinderGeometry(.16,.18,.5,20),new THREE.MeshPhongMaterial({color:0xe8f0f8,transparent:true,opacity:.8}),0,0));
+  const nz=MM(new THREE.CylinderGeometry(.015,.02,.45,8),new THREE.MeshPhongMaterial({color:0xffffff}),-.15,.38);nz.rotation.z=.9;A2.wash.add(nz);A2.wash.visible=false;g.add(A2.wash);
+  A2.wg=new THREE.Group();A2.wg.position.set(.3,0,.95);g.add(A2.wg);
+  const wgg=new THREE.SphereGeometry(.4,24,8,0,Math.PI*2,Math.PI*.82,Math.PI*.18);const wgm=MM(wgg,glassMat,0,.38);wgm.renderOrder=10;A2.wg.add(wgm);
+  A2.pile=MM(new THREE.ConeGeometry(.17,.08,20),new THREE.MeshLambertMaterial({color:0xf4f4f4,flatShading:true}),0,.08);A2.wg.add(A2.pile);A2.wg.visible=false;
+})();
+function V2(x,y){return new THREE.Vector2(x,y)}
+function insReset(){Object.assign(S2,{stage:'start',washed:false,ppt:0,F:0});const P=INSP[S2.pair];
+  A2.a.g.position.copy(A2.aHome);A2.a.g.rotation.set(0,0,0);A2.a.set(.25);A2.a.mat.color.set('#eef3f8');A2.a.mat.opacity=.35;
+  A2.b.g.position.copy(A2.bHome);A2.b.g.rotation.set(0,0,0);A2.b.g.visible=true;A2.b.set(.22);
+  A2.P.clear();A2.fun.res.visible=false;A2.fun.liq.visible=false;A2.fliq.visible=false;A2.str.visible=false;A2.wash.visible=false;A2.wg.visible=false;
+  A2.fun.resMat.color.set(P.col);A2.pile.material.color.set(P.col);
+}
+function insAct(id){const P=INSP[S2.pair];
+  if(id==='mix'){if(S2.stage!=='start')return;const to=V3(-1.05,1.25,.1);
+    spSeq([qStep(1,k=>{const e=ease(k);A2.b.g.position.lerpVectors(A2.bHome,to,e);A2.b.g.rotation.z=1.9*Math.max(0,(k-.45)/.55)}),
+      qStep(1.6,k=>{setStream(A2.str,V3(-1.6,1.05,.1),.25+.3*k);A2.b.set(.22*(1-k));A2.a.set(.25+.25*k);S2.ppt=k;A2.a.mat.color.set('#eef3f8').lerp(new THREE.Color(P.col),.85*k);A2.a.mat.opacity=.35+.55*k;
+        if(Math.random()<.6){const q=A2.P.get();q.on=true;q.m.position.set(rnd(-.3,.3),rnd(.1,.45),rnd(-.3,.3));q.m.scale.setScalar(rnd(.015,.03));q.m.material.color.set(P.col);q.vy=-rnd(.05,.12);q.m.visible=true}},()=>{A2.str.visible=false}),
+      qStep(.9,k=>{const e=ease(k);A2.b.g.rotation.z=1.9*(1-e);A2.b.g.position.lerpVectors(to,A2.bHome,e)},()=>{A2.b.g.visible=false;S2.stage='mixed';explainForce('sep_ins_mix')})]);return}
+  if(id==='filter'){if(S2.stage!=='mixed')return;const to=V3(.72,2.45,0);
+    spSeq([qStep(1.1,k=>{const e=ease(k);A2.a.g.position.lerpVectors(A2.aHome,to,e);A2.a.g.rotation.z=-1.9*Math.max(0,(k-.5)*2)}),
+      qStep(2.6,k=>{setStream(A2.str,V3(1.42,2.3,0),1.85);A2.a.set(.5*(1-k));A2.fun.liq.visible=true;A2.fun.liq.scale.setScalar(.2+.6*Math.sin(Math.PI*Math.min(1,k*1.2)));A2.fun.liqMat.color.set(P.col);
+        A2.fun.res.visible=true;A2.fun.res.scale.setScalar(Math.max(.05,k));A2.P.forEach(q=>{if(q.on&&Math.random()<.03){q.on=false;q.m.visible=false}});
+        if(Math.random()<.5)drip(V3(1.4,.95,0),.1+.3*k);S2.F=k;A2.fliq.visible=true;A2.fliq.scale.set(1,Math.max(.01,.3*k),1)},()=>{A2.str.visible=false;A2.fun.liq.visible=false;A2.P.clear()}),
+      qStep(1.1,k=>{const e=ease(k);A2.a.g.rotation.z=-1.9*(1-e);A2.a.g.position.lerpVectors(to,A2.aHome,e)},()=>{S2.stage='filtered';explain('sep_filter')})]);return}
+  if(id==='wash'){if(S2.stage!=='filtered')return;
+    spSeq([qStep(2.2,k=>{A2.wash.visible=true;A2.wash.position.set(1.95,2.45,0);A2.wash.rotation.z=.5*Math.min(1,k*3);if(k>.25&&k<.85)setStream(A2.str,V3(1.62,2.62,0),1.75,'#e8f2ff');else A2.str.visible=false;
+        if(k>.4&&Math.random()<.4)drip(V3(1.4,.95,0),.4)},()=>{A2.wash.visible=false;A2.str.visible=false;S2.washed=true;spMsg(`Washed: the soluble ${P.filt} has been rinsed away.`)})]);return}
+  if(id==='dry'){if(S2.stage!=='filtered')return;
+    spSeq([qStep(1.4,k=>{A2.wg.visible=true;A2.pile.scale.setScalar(Math.max(.05,k));A2.fun.res.scale.setScalar(1-k*.9)},()=>{A2.fun.res.visible=false;S2.stage='done';explainForce('sep_ins_done');
+      if(S2.washed){complete('sep_ins');spMsg(`Pure, dry ${P.p}.`)}else spMsg(`Dry ${P.p}, but it was not washed, so it still contains some ${P.filt}.`)})]);return}
+  if(id==='reset'){insReset();spMsg('')}
+}
+function insUpdate(dt){A2.P.forEach(q=>{if(!q.on)return;q.m.position.y=Math.max(.04,q.m.position.y+q.vy*dt)})}
+
+/* ---------- 3 & 4. Distillation ---------- */
+function mkCondenser(P0,P1){const g=new THREE.Group(),d=P1.clone().sub(P0),len=d.length(),dir=d.clone().normalize(),mid=P0.clone().add(P1).multiplyScalar(.5);
+  const q=new THREE.Quaternion().setFromUnitVectors(V3(0,1,0),dir),qz=new THREE.Quaternion().setFromUnitVectors(V3(0,0,1),dir);
+  const add=(geo,mat,off,qq)=>{const m=new THREE.Mesh(geo,mat);m.quaternion.copy(qq||q);m.position.copy(mid).add(d.clone().multiplyScalar(off||0));g.add(m);return m};
+  add(new THREE.CylinderGeometry(.055,.055,len,14,1,true),glassMat).renderOrder=10;
+  const jl=len*.76;const jk=add(new THREE.CylinderGeometry(.19,.19,jl,24,1,true),glassMat);jk.renderOrder=11;
+  const wm=lmat('#7fc4ff',0),wat=add(new THREE.CylinderGeometry(.175,.175,jl,24),wm);wat.renderOrder=4;wat.visible=false;
+  [-.38,.38].forEach(f=>add(new THREE.TorusGeometry(.18,.025,6,24),rimMat,f,qz));
+  const pIn=P0.clone().add(d.clone().multiplyScalar(.84)),pOut=P0.clone().add(d.clone().multiplyScalar(.16));
+  g.add(MM(new THREE.CylinderGeometry(.04,.04,.3,8),glassMat,pIn.x,pIn.y-.3,0),MM(new THREE.CylinderGeometry(.04,.04,.3,8),glassMat,pOut.x,pOut.y+.3,0));
+  g.add(gtube([[pIn.x,pIn.y-.45],[pIn.x,pIn.y-.8],[pIn.x+.3,.06,.6],[pIn.x+1.2,.06,.9]],.05,hoseM));
+  g.add(gtube([[pOut.x,pOut.y+.45],[pOut.x,pOut.y+.8],[pOut.x+.4,pOut.y+.6,-.6],[pOut.x+.6,.06,-1.1]],.05,hoseM));
+  return{g,wat,wm,pIn,pOut,P0,P1,dir}}
+function mkDistil(frac){const g=new THREE.Group(),o={g,frac};const X=-2.0;
+  o.tri=mkTripod(X,1.12);o.bun=mkBunsen(X);g.add(o.tri,o.bun);
+  const R=.55,cy=1.16+R;o.R=R;o.cy=cy;o.X=X;
+  const fs=MM(new THREE.SphereGeometry(R,32,24),glassMat,X,cy);fs.renderOrder=10;g.add(fs);
+  const nk=MM(new THREE.CylinderGeometry(.13,.13,.55,16,1,true),glassMat,X,cy+R+.2);nk.renderOrder=10;g.add(nk);
+  let top=cy+R+.45;
+  if(frac){const col=MM(new THREE.CylinderGeometry(.15,.15,1.3,20,1,true),glassMat,X,top+.65);col.renderOrder=10;g.add(col);
+    const bm=new THREE.MeshPhongMaterial({color:0xe8f2ff,transparent:true,opacity:.55,shininess:120});
+    for(let i=0;i<46;i++){const b=MM(new THREE.SphereGeometry(.035,8,6),bm,X+rnd(-.1,.1),top+.1+rnd(0,1.1),rnd(-.1,.1));g.add(b)}top+=1.3}
+  const hd=MM(new THREE.CylinderGeometry(.11,.11,.6,16,1,true),glassMat,X,top+.28);hd.renderOrder=10;g.add(hd);
+  const yA=top+.3;o.yA=yA;o.top=top;
+  const th=MM(new THREE.CylinderGeometry(.028,.028,1.15,10),new THREE.MeshPhongMaterial({color:0xf0f6ff,transparent:true,opacity:.6}),X,yA+.55);g.add(th);
+  g.add(MM(new THREE.SphereGeometry(.045,10,8),new THREE.MeshPhongMaterial({color:0xc93b3b}),X,yA));
+  const tcg=new THREE.CylinderGeometry(.012,.012,1,6);tcg.translate(0,.5,0);o.tcol=MM(tcg,new THREE.MeshBasicMaterial({color:0xd03a3a}),X,yA);g.add(o.tcol);
+  g.add(gtube([[X,yA],[X+.25,yA-.05],[X+.45,yA-.13]],.055));
+  const P0=V3(X+.45,yA-.13,0),P1=V3(.85,yA-1.3,0);o.cond=mkCondenser(P0,P1);g.add(o.cond.g);
+  g.add(gtube([[P1.x,P1.y],[P1.x+.15,P1.y-.1],[P1.x+.2,P1.y-.4]],.055));o.tip=V3(P1.x+.2,P1.y-.42,0);
+  const recH=.8,blockH=Math.max(0,o.tip.y-.35-recH);o.recY=blockH;
+  if(blockH>.05)g.add(MM(new THREE.BoxGeometry(.95,blockH,.8),new THREE.MeshLambertMaterial({color:0x5c5853}),o.tip.x,blockH/2));
+  o.recs=[];o.newRec=()=>{const b=mkBeaker(.36,recH,frac?'#eef6ff':'#e8f2ff',.4);b.g.position.set(o.tip.x,blockH,0);g.add(b.g);o.recs.push(b);return b};
+  g.add(mkStand(X,-.8,frac?5.6:4.4),MM(new THREE.BoxGeometry(.06,.06,.8),standMat,X,cy+R+.3,-.4));
+  const cm=P0.clone().add(P1).multiplyScalar(.5);g.add(mkStand(cm.x,-.8,cm.y+.4));g.add(MM(new THREE.BoxGeometry(.06,.06,.8),standMat,cm.x,cm.y,-.4));
+  o.lg=new THREE.Group();o.lg.position.set(X,cy,0);g.add(o.lg);o.lmat=lmat('#2340a8',.6);o.lh=-1;
+  o.setFlask=V=>{const Rr=R-.03,full=4/3*Math.PI*Rr**3,u=Math.min(.95,V/100)*full;let lo=0,hi=2*Rr;
+    for(let i=0;i<28;i++){const h=(lo+hi)/2,v=Math.PI*h*h*(3*Rr-h)/3;if(v<u)lo=h;else hi=h}
+    const h=lo;if(Math.abs(h-o.lh)<.004)return;o.lh=h;while(o.lg.children.length){const c=o.lg.children.pop();c.geometry.dispose()}
+    if(h<.01)return;const thv=Math.acos(clamp((Rr-h)/Rr,-1,1));
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(Rr,28,16,0,Math.PI*2,Math.PI-thv,thv),o.lmat);cap.renderOrder=3;o.lg.add(cap);
+    const disc=new THREE.Mesh(new THREE.CircleGeometry(Math.sqrt(Math.max(0,Rr*Rr-(Rr-h)**2)),28),o.lmat);disc.rotation.x=-Math.PI/2;disc.position.y=-Rr+h;disc.renderOrder=3;o.lg.add(disc)};
+  return o}
+const D3=mkDistil(false);actG.dis.add(D3.g);
+const D4=mkDistil(true);actG.fra.add(D4.g);
+const S3={},S4={};
+function disReset(){Object.assign(S3,{heat:false,water:false,T:20,V:60,D:0,warned:false,carded:false});
+  D3.recs.forEach(r=>D3.g.remove(r.g));D3.recs=[];S3.rec=D3.newRec();D3.lmat.color.set('#2340a8');D3.lmat.opacity=.6;D3.lh=-1;D3.setFlask(60);setFlame(D3.bun,false);D3.cond.wat.visible=false}
+function fraReset(){Object.assign(S4,{heat:false,water:true,T:20,E:30,W:30,E0:30,fr:[{e:0,w:0}],t:0,pts:[[0,20]],rec:0,carded:false,warned:false});
+  D4.recs.forEach(r=>D4.g.remove(r.g));D4.recs=[];S4.cur=D4.newRec();D4.lmat.color.set('#eaf2fb');D4.lmat.opacity=.45;D4.lh=-1;D4.setFlask(60);setFlame(D4.bun,false);D4.cond.wat.visible=true;D4.cond.wm.opacity=.35}
+function disAct(id){
+  if(id==='water'){S3.water=!S3.water;D3.cond.wat.visible=S3.water;D3.cond.wm.opacity=.35;return}
+  if(id==='heat'){if(S3.V<=5){toast('Almost nothing left in the flask. Press Start again.');return}S3.heat=!S3.heat;setFlame(D3.bun,S3.heat);return}
+  if(id==='reset'){disReset();spMsg('')}
+}
+function fraAct(id){
+  if(id==='heat'){if(S4.E+S4.W<=6){toast('Almost nothing left in the flask. Press Start again.');return}S4.heat=!S4.heat;setFlame(D4.bun,S4.heat);return}
+  if(id==='water'){S4.water=!S4.water;D4.cond.wat.visible=S4.water;return}
+  if(id==='swap'){if(S4.fr.length>=3){toast('Three fractions is enough. Press Start again for a new run.');return}
+    const old=S4.cur;const n=D4.recs.length;old.g.position.set(D4.tip.x+.95+(n-1)*.85,0,.75);S4.cur=D4.newRec();S4.fr.push({e:0,w:0});SFX.clink();
+    const f=S4.fr[S4.fr.length-2],tot=f.e+f.w;spMsg(`Fraction ${S4.fr.length-1} saved: ${tot.toFixed(1)} cm³, ${tot?Math.round(100*f.e/tot):0}% ethanol.`);return}
+  if(id==='reset'){fraReset();spMsg('')}
+}
+function vapour(o,frac){const y0=o.cy+o.lh-o.R;sbub(o.X+rnd(-.06,.06),Math.max(o.cy-o.R+.1,y0),rnd(-.06,.06),o.yA)}
+function disUpdate(dt,sdt){
+  if(S3.heat){S3.T=Math.min(100,S3.T+sdt*(S3.T<90?16:5));
+    if(S3.T>=99.9&&S3.V>4){const dv=sdt*.9;S3.V-=dv;if(!S3.carded){S3.carded=true;explain('sep_dis')}
+      if(Math.random()<dt*20)vapour(D3);
+      if(S3.water){S3.D+=dv;if(Math.random()<dt*6)drip(D3.tip,D3.recY+.03+S3.rec.lv+.02);if(S3.D>=20)complete('sep_dis')}
+      else{if(Math.random()<dt*12)steam(D3.tip.x+.05,D3.tip.y,0,.3);if(!S3.warned){S3.warned=true;explainForce('sep_nowater')}}}
+    if(S3.V<=4){S3.heat=false;setFlame(D3.bun,false);toast('Stop! Never heat a flask to dryness.');}}
+  else S3.T=Math.max(20,S3.T-sdt*3);
+  D3.setFlask(S3.V);const c=60/Math.max(S3.V,5);D3.lmat.opacity=Math.min(.95,.5+.07*c);D3.lmat.color.set('#2340a8').multiplyScalar(Math.max(.45,1.1-.1*c));
+  S3.rec.set(Math.min(.7,S3.D*.011));D3.tcol.scale.y=.12+.9*(S3.T-0)/110;
+  D3.tri.userData.gm.emissive.setRGB(1,.3,.05).multiplyScalar(S3.heat?.35:0);
+}
+function fraUpdate(dt,sdt){const S=S4;
+  if(S.heat){S.t+=sdt;const Tt=S.E>.6?78.4+3.5*Math.pow(1-S.E/S.E0,2):100;
+    if(S.T<Tt)S.T=Math.min(Tt,S.T+sdt*(S.T<70?14:Tt>90?2.2:5));else S.T=Tt;
+    if(S.T>=Tt-.3&&S.E+S.W>6){const dv=sdt*.6;let x=S.T<84?.95:S.T<97?.95-(S.T-84)/13*.88:.02;let e=Math.min(S.E,x*dv),w=Math.min(S.W,dv-e);S.E-=e;S.W-=w;
+      if(!S.carded){S.carded=true;explain('sep_fra')}
+      if(Math.random()<dt*20)vapour(D4);
+      if(S.water){const f=S.fr[S.fr.length-1];f.e+=e;f.w+=w;if(Math.random()<dt*6)drip(D4.tip,D4.recY+.03+S.cur.lv+.02);
+        const tot=f.e+f.w;if(tot>=10&&f.e/tot>=.9)complete('sep_fra')}
+      else{if(Math.random()<dt*12)steam(D4.tip.x+.05,D4.tip.y,0,.3);if(!S.warned){S.warned=true;explainForce('sep_nowater')}}}
+    if(S.E+S.W<=6){S.heat=false;setFlame(D4.bun,false);toast('Stop! Never heat a flask to dryness.')}
+    S.rec+=sdt;if(S.rec>=.5){S.rec=0;S.pts.push([S.t,S.T]);if(S.pts.length>600)S.pts.shift()}}
+  else S.T=Math.max(20,S.T-sdt*3);
+  D4.setFlask(S.E+S.W);D4.tcol.scale.y=.12+.9*S.T/110;
+  const f=S.fr[S.fr.length-1];S.cur.set(Math.min(.7,(f.e+f.w)*.022));
+  D4.tri.userData.gm.emissive.setRGB(1,.3,.05).multiplyScalar(S.heat?.35:0);
+}
+function drawSpGraph(){
+  const c=$('spGraph');if($('spGraphWrap').hidden)return;const w=c.clientWidth,h=c.clientHeight;if(!w||!h)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1);if(c.width!==Math.round(w*dpr)||c.height!==Math.round(h*dpr)){c.width=Math.round(w*dpr);c.height=Math.round(h*dpr)}
+  const x=c.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,w,h);
+  const cs=getComputedStyle(document.documentElement),mut=cs.getPropertyValue('--muted').trim(),line=cs.getPropertyValue('--line').trim(),amber=cs.getPropertyValue('--amber').trim();
+  const L=34,B=26,T=8,Rr=8,pw=w-L-Rr,ph=h-T-B;const pts=S4.pts;let tMax=Math.max(60,pts.length?pts[pts.length-1][0]:0);tMax=Math.ceil(tMax/30)*30;
+  const X=t=>L+pw*t/tMax,Y=v=>T+ph*(1-(v-20)/90);
+  x.font='600 11px Nunito, sans-serif';x.fillStyle=mut;x.strokeStyle=line;x.lineWidth=1;
+  [20,40,60,80,100].forEach(v=>{x.beginPath();x.moveTo(L,Y(v));x.lineTo(L+pw,Y(v));x.stroke();x.textAlign='right';x.fillText(String(v),L-5,Y(v)+4)});
+  x.setLineDash([4,4]);x.strokeStyle='rgba(91,214,196,.7)';x.beginPath();x.moveTo(L,Y(78));x.lineTo(L+pw,Y(78));x.stroke();x.setLineDash([]);
+  x.fillStyle='rgba(91,214,196,.9)';x.textAlign='left';x.fillText('78 °C ethanol',L+4,Y(78)-4);
+  x.fillStyle=mut;x.textAlign='center';x.fillText('time / s',L+pw/2,h-2);x.save();x.translate(10,T+ph/2);x.rotate(-Math.PI/2);x.fillText('°C',0,0);x.restore();
+  if(pts.length>1){x.strokeStyle=amber;x.lineWidth=2.5;x.beginPath();pts.forEach(([t,v],i)=>i?x.lineTo(X(t),Y(v)):x.moveTo(X(t),Y(v)));x.stroke()}
+}
+
+/* ---------- 5. Separating funnel ---------- */
+const A5={};const S5={};
+(function(){const g=actG.sepf;
+  const rS=y=>y<1.15?.045+.455*Math.pow(y/1.15,.85):y<1.55?.14+.36*Math.cos((y-1.15)/.4*Math.PI/2):.13;A5.rS=rS;
+  A5.body=new THREE.Group();A5.body.position.set(0,1.75,0);g.add(A5.body);
+  const pts=[];for(let y=0;y<=1.9;y+=.05)pts.push(V2(rS(y),y));const bd=new THREE.Mesh(new THREE.LatheGeometry(pts,40),glassMat);bd.renderOrder=10;A5.body.add(bd);
+  A5.body.add(MM(new THREE.CylinderGeometry(.035,.028,.75,10),glassMat,0,-.37));
+  A5.body.add(MM(new THREE.CylinderGeometry(.07,.07,.18,12),new THREE.MeshPhongMaterial({color:0xe8eef8,transparent:true,opacity:.7}),0,-.3));
+  A5.tap=MM(new THREE.BoxGeometry(.32,.05,.07),new THREE.MeshLambertMaterial({color:0x3b6fd8}),0,-.3,.1);A5.body.add(A5.tap);
+  A5.stop=MM(new THREE.CylinderGeometry(.15,.11,.2,16),new THREE.MeshLambertMaterial({color:0x9aa7c2}),0,1.98);A5.body.add(A5.stop);
+  const N=300,dy=1.15/N;A5.tab=[0];let acc=0;for(let i=1;i<=N;i++){const y=(i-.5)*dy,r=rS(y)-.02;acc+=Math.PI*r*r*dy;A5.tab.push(acc)}A5.sc=100/acc;A5.dy=dy;
+  A5.hOf=V=>{const u=V/A5.sc;if(u<=0)return 0;let lo=0,hi=N;while(hi-lo>1){const m=(lo+hi)>>1;if(A5.tab[m]<u)lo=m;else hi=m}return(lo+(u-A5.tab[lo])/((A5.tab[hi]-A5.tab[lo])||1))*dy};
+  A5.wMat=lmat('#8fc8ff',.45);A5.oMat=lmat('#f0c437',.8);A5.wM=null;A5.oM=null;
+  g.add(mkStand(1.0,-.3,3.5),mkArm(1.0,0,2.75,-.3,.52));
+  A5.b1=mkBeaker(.42,.85,'#8fc8ff',.45);g.add(A5.b1.g);A5.b1.o=0;A5.b1.w=0;
+  A5.b2=mkBeaker(.42,.85,'#f0c437',.8);A5.b2.g.position.set(1.15,0,1.0);g.add(A5.b2.g);A5.b2.o=0;A5.b2.w=0;
+  A5.str=streamMesh('#8fc8ff');g.add(A5.str);
+  A5.seg=(y0,y1,mat)=>{if(y1-y0<.004)return null;const p=[V2(.001,y0)];for(let y=y0;y<y1;y+=.03)p.push(V2(Math.max(.002,rS(y)-.022),y));p.push(V2(Math.max(.002,rS(y1)-.022),y1),V2(.001,y1));
+    const m=new THREE.Mesh(new THREE.LatheGeometry(p,28),mat);m.renderOrder=3;return m};
+})();
+function sfLayers(){const hw=A5.hOf(S5.W),ht=A5.hOf(S5.W+S5.O);const key=hw.toFixed(3)+ht.toFixed(3);if(key===A5.key)return;A5.key=key;
+  [A5.wM,A5.oM].forEach(m=>{if(m){A5.body.remove(m);m.geometry.dispose()}});
+  A5.wM=A5.seg(0,hw,A5.wMat);A5.oM=A5.seg(hw,ht,A5.oMat);if(A5.wM)A5.body.add(A5.wM);if(A5.oM)A5.body.add(A5.oM)}
+function sfReset(){Object.assign(S5,{stopper:true,tap:false,mix:0,W:40,O:30,cur:1,flowT:0,warned:false,carded:false});
+  A5.b1.w=A5.b1.o=A5.b2.w=A5.b2.o=0;A5.b1.set(0);A5.b2.set(0);A5.b1.g.position.set(0,0,0);A5.b2.g.position.set(1.15,0,1.0);
+  A5.stop.position.set(0,1.98,0);A5.stop.rotation.set(0,0,0);A5.body.rotation.set(0,0,0);A5.body.position.set(0,1.75,0);A5.key='';sfLayers();A5.tap.rotation.y=0;A5.str.visible=false}
+function sfAct(id){
+  if(id==='shake'){if(!S5.stopper){toast('Put the stopper in first, or the liquid will spill!');SFX.no();return}if(S5.tap){toast('Close the tap first.');return}
+    spSeq([qStep(2.4,k=>{const lift=Math.sin(Math.PI*k);A5.body.position.y=1.75+.5*lift;A5.body.rotation.z=Math.PI*.85*lift+Math.sin(k*60)*.08*lift;S5.mix=1},()=>{A5.body.rotation.z=0;A5.body.position.y=1.75;spMsg('Shaken. Wait for the layers to settle.')})]);return}
+  if(id==='stopper'){if(S5.stopper){S5.stopper=false;A5.stop.position.set(.75,-1.75+.1,.5);A5.stop.rotation.x=Math.PI/2}else{S5.stopper=true;A5.stop.position.set(0,1.98,0);A5.stop.rotation.set(0,0,0)}return}
+  if(id==='tap'){S5.tap=!S5.tap;S5.flowT=0;A5.tap.rotation.y=S5.tap?Math.PI/2:0;if(S5.tap&&S5.mix>.3)toast('The layers have not settled yet!');return}
+  if(id==='swap'){if(S5.tap){toast('Close the tap before swapping beakers.');return}if(S5.cur===2)return;S5.cur=2;A5.b1.g.position.set(-1.15,0,.8);A5.b2.g.position.set(0,0,0);spMsg('Second beaker under the funnel. Now run off the top layer.');return}
+  if(id==='reset'){sfReset();spMsg('')}
+}
+function sfUpdate(dt,sdt){
+  if(!SP.busy&&S5.mix>0)S5.mix=Math.max(0,S5.mix-sdt*.3);
+  if(!S5.carded&&S5.mix===0&&SP.act==='sepf'){S5.carded=true;explain('sep_funnel')}
+  const mixC=new THREE.Color('#d9d2b0');A5.wMat.color.set('#8fc8ff').lerp(mixC,S5.mix);A5.oMat.color.set('#f0c437').lerp(mixC,S5.mix);A5.wMat.opacity=.45+.4*S5.mix;
+  if(S5.tap&&S5.W+S5.O>0){S5.flowT+=sdt;let rate=3.2;
+    if(S5.stopper){rate*=Math.max(0,1-S5.flowT/.6);if(rate<.05&&!S5.warned){S5.warned=true;toast('It stopped dripping: air can\'t get in. Take the stopper out!')}}
+    const dv=Math.min(S5.W+S5.O,rate*sdt);let dw,dO;
+    if(S5.mix>.3){dw=dv*S5.W/(S5.W+S5.O);dO=dv-dw}else{dw=Math.min(S5.W,dv);dO=dv-dw}
+    S5.W-=dw;S5.O=Math.max(0,S5.O-dO);const b=S5.cur===1?A5.b1:A5.b2;b.w+=dw;b.o+=dO;
+    if(dv>1e-4){const col=dO>dw?'#f0c437':'#8fc8ff';setStream(A5.str,V3(0,1.0,0),.03+b.lv,col)}else A5.str.visible=false}
+  else A5.str.visible=false;
+  [A5.b1,A5.b2].forEach(b=>{b.set(Math.min(.8,(b.w+b.o)*.0115));const t=b.w+b.o;if(t>0)b.mat.color.set('#8fc8ff').lerp(new THREE.Color('#f0c437'),b.o/t);b.mat.opacity=t&&b.o/t>.5?.8:.45});
+  sfLayers();
+  if(A5.b1.w>=38&&A5.b1.o<=1&&S5.W<=2)complete('sep_funnel');
+}
+
+/* ---------- panel ---------- */
+const SPB={
+  sol:[['warm',()=>S1.warm?'Stop warming':'Warm the acid'],['add',()=>`Add a spatula of ${SOLB[S1.base].f}`],['filter','Filter'],['heat',()=>S1.heat?'Stop heating':'Heat the filtrate'],['rod','Glass rod test'],['cool','Leave to cool'],['dry','Dry the crystals'],['reset','Start again']],
+  ins:[['mix','Mix the solutions'],['filter','Filter'],['wash','Wash with distilled water'],['dry','Dry the solid'],['reset','Start again']],
+  dis:[['water',()=>S3.water?'Condenser water off':'Condenser water on'],['heat',()=>S3.heat?'Turn Bunsen off':'Turn Bunsen on'],['reset','Start again']],
+  fra:[['heat',()=>S4.heat?'Turn Bunsen off':'Turn Bunsen on'],['swap','Change receiver'],['water',()=>S4.water?'Condenser water off':'Condenser water on'],['reset','Start again']],
+  sepf:[['shake','Stopper on, shake'],['stopper',()=>S5.stopper?'Remove stopper':'Put stopper in'],['tap',()=>S5.tap?'Close tap':'Open tap'],['swap','Swap beaker'],['reset','Start again']],
+};
+const SPOK={
+  sol:{add:()=>S1.stage==='react',filter:()=>S1.stage==='react',heat:()=>S1.stage==='filtered'||S1.stage==='evap',rod:()=>S1.stage==='evap'&&!S1.over,cool:()=>S1.stage==='evap'&&!S1.over,dry:()=>S1.stage==='cryst',warm:()=>S1.stage==='react'},
+  ins:{mix:()=>S2.stage==='start',filter:()=>S2.stage==='mixed',wash:()=>S2.stage==='filtered',dry:()=>S2.stage==='filtered'},
+  dis:{},fra:{swap:()=>S4.fr.length<3},sepf:{swap:()=>S5.cur===1},
+};
+let spMsgT='';function spMsg(t){spMsgT=t;spRefresh()}
+function spStatus(){
+  if(SP.act==='sol'){const st={react:`Acid + ${SOLB[S1.base].n}`,filtered:'Filtrate in the basin',evap:`Evaporating: ${Math.max(0,S1.V).toFixed(0)} cm³ left`,cryst:'Crystals formed',done:'Done!'}[S1.stage];return spMsgT||st}
+  if(SP.act==='ins'){const P=INSP[S2.pair];return spMsgT||`${cap(P.a[0])} (${P.a[1]}) + ${P.b[0]} (${P.b[1]})`}
+  if(SP.act==='dis')return `Ink solution: ${S3.V.toFixed(0)} cm³ · Distillate: ${S3.D.toFixed(1)} cm³`;
+  if(SP.act==='fra')return S4.fr.map((f,i)=>{const t=f.e+f.w;return `Fraction ${i+1}: ${t.toFixed(1)} cm³ (${t?Math.round(100*f.e/t):0}% ethanol)`}).join(' · ');
+  if(SP.act==='sepf'){const f=b=>`${b.w.toFixed(0)} cm³ water, ${b.o.toFixed(0)} cm³ oil`;return `Beaker 1: ${f(A5.b1)} · Beaker 2: ${f(A5.b2)}`}
+}
+function spRefresh(){
+  $('spBtns').querySelectorAll('[data-sp]').forEach(b=>{const d=SPB[SP.act].find(x=>x[0]===b.dataset.sp);b.textContent=typeof d[1]==='function'?d[1]():d[1];
+    const ok=SPOK[SP.act][b.dataset.sp];b.disabled=SP.busy||(ok?!ok():false)});
+  $('spChips').querySelectorAll('button').forEach(b=>b.disabled=SP.busy||(SP.act==='sol'?S1.added>0:S2.stage!=='start'));
+  $('spStatus').textContent=spStatus();
+  const T=SP.act==='dis'?S3.T:SP.act==='fra'?S4.T:null;$('roSep').hidden=T==null;if(T!=null)$('sepV').textContent=T.toFixed(1)+' °C';
+}
+function spUI(){
+  document.querySelectorAll('#spTabs .tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.sa===SP.act));
+  $('spChips').innerHTML=SP.act==='sol'?Object.keys(SOLB).map(k=>`<button class="chp" data-sb="${k}" aria-pressed="${k===S1.base}">${SOLB[k].f}</button>`).join('')
+    :SP.act==='ins'?Object.keys(INSP).map(k=>`<button class="chp" data-sb="${k}" aria-pressed="${k===S2.pair}">${INSP[k].pf}</button>`).join(''):'';
+  $('spBtns').innerHTML=SPB[SP.act].map(([id])=>`<button class="tst${id==='reset'?' empty':''}" data-sp="${id}"></button>`).join('');
+  $('spGraphWrap').hidden=SP.act!=='fra';spRefresh();
+}
+function spSeq(S){SP.seq=S;SP.si=0;SP.st=0;SP.busy=true;spRefresh()}
+const SPRESET={sol:solReset,ins:insReset,dis:disReset,fra:fraReset,sepf:sfReset};
+function spSetAct(a){SP.act=a;Object.keys(actG).forEach(k=>actG[k].visible=k===a);[DRIP,SSTEAM,SBUB].forEach(p=>p.clear());
+  if(!SP.inited){SP.inited={}}if(!SP.inited[a]){SP.inited[a]=1;SPRESET[a]()}
+  spMsgT='';spUI();camGoals();
+  if(a==='dis')explain('sep_dis_intro');if(a==='fra')explain('sep_fra_intro');
+}
+$('spTabs').addEventListener('click',e=>{const b=e.target.closest('[data-sa]');if(!b||SP.busy)return;
+  if(SP.act==='dis'&&S3.heat)disAct('heat');if(SP.act==='fra'&&S4.heat)fraAct('heat');if(SP.act==='sepf'&&S5.tap)sfAct('tap');if(SP.act==='sol'&&(S1.heat||S1.warm)){S1.heat=S1.warm=false;setFlame(A1.bL,false);setFlame(A1.bR,false)}
+  spSetAct(b.dataset.sa)});
+$('spChips').addEventListener('click',e=>{const b=e.target.closest('[data-sb]');if(!b||b.disabled)return;if(SP.act==='sol'){S1.base=b.dataset.sb;solReset()}else{S2.pair=b.dataset.sb;insReset()}spMsgT='';spUI()});
+$('spBtns').addEventListener('click',e=>{const b=e.target.closest('[data-sp]');if(!b||b.disabled||SP.busy)return;audio();
+  ({sol:solAct,ins:insAct,dis:disAct,fra:fraAct,sepf:sfAct})[SP.act](b.dataset.sp);if(b.dataset.sp!=='reset'&&!/excess|dissolve/.test(spMsgT))spMsgT=spMsgT;spRefresh()});
+function spUpdate(dt,sdt){
+  if(G.mode!=='sep')return;
+  if(SP.seq){const s=SP.seq[SP.si];if(SP.st===0&&s.start)s.start();SP.st+=dt;const k=Math.min(1,SP.st/s.d);s.u&&s.u(k,dt);
+    if(k>=1){s.end&&s.end();SP.si++;SP.st=0;if(SP.si>=SP.seq.length){SP.seq=null;SP.busy=false;spRefresh()}}}
+  if(SP.act==='sol')solUpdate(dt,sdt);else if(SP.act==='ins')insUpdate(dt);else if(SP.act==='dis')disUpdate(dt,sdt);else if(SP.act==='fra')fraUpdate(dt,sdt);else sfUpdate(dt,sdt);
+  spPools(dt);
+  SP.ui+=dt;if(SP.ui>.25){SP.ui=0;spRefresh();if(SP.act==='fra')drawSpGraph()}
+  const on=(SP.act==='sol'&&(S1.heat||S1.warm))||(SP.act==='dis'&&S3.heat)||(SP.act==='fra'&&S4.heat);
+  if(AC&&roarGain&&on)roarGain.gain.setTargetAtTime(muted?0:.08,AC.currentTime,.12);
+}
+Object.assign(HEXP,{
+  sep_excess:()=>{const B=SOLB[S1.base];return{title:'Excess base',obs:`Some ${B.n} stays undissolved.`,sym:B.eq,word:B.word,
+    why:'Adding the insoluble base until some is left over makes sure all the acid has reacted, so no acid ends up in the salt. The extra solid is removed by filtering.'}},
+  sep_filter:()=>({title:'Filtration',obs:'The solid stays on the filter paper (the residue). The liquid passes through (the filtrate).',sym:'mixture → residue + filtrate',word:'insoluble solid is the residue; the solution is the filtrate',
+    why:'Filter paper has tiny holes. Water and dissolved particles pass through, but pieces of solid are too big.'}),
+  sep_cryst:()=>{const B=SOLB[S1.base];return{title:'Crystallisation',obs:`${B.hyd} crystals grow as the solution cools.`,sym:`${B.pf}(aq) → ${B.hyd}(s)`,word:'saturated hot solution → cools → crystals',
+    why:'Heat only to the crystallisation point (crystals form on a cold glass rod). As it cools, less salt can stay dissolved, so crystals grow. Heating to dryness would leave a powder instead.'}},
+  sep_overdry:()=>{const B=SOLB[S1.base];return{warn:true,title:'Heated to dryness',obs:'Only a powder is left, not crystals.',sym:B.deh,word:'too much heat removes the water of crystallisation',
+    why:'Stop heating at the crystallisation point and let the crystals form as it cools. Heating to dryness drives off the water of crystallisation and can spit hot solid.'}},
+  sep_sol_done:()=>{const B=SOLB[S1.base];return{title:`${B.hyd} crystals`,obs:`Dry crystals of ${B.p}.`,sym:B.eq,word:B.word,
+    why:'Method: add excess insoluble base to warm acid → filter off the excess → heat the filtrate to the crystallisation point → leave to cool → filter and dry the crystals.'}},
+  sep_ins_mix:()=>{const P=INSP[S2.pair];return{title:'Precipitation',obs:`A ${P.w} precipitate of ${P.p} forms.`,sym:P.ion,word:P.eq,
+    why:'Two soluble salts swap ions. The insoluble salt comes out of solution as a solid: a precipitate.'}},
+  sep_ins_done:()=>{const P=INSP[S2.pair];return{title:`Pure ${P.p}`,obs:`A dry ${P.w} powder.`,sym:P.eq,word:'mix → filter → wash → dry',
+    why:`The residue is washed with distilled water to rinse away the soluble ${P.filt} left in the filtrate, then dried in a warm oven.`}},
+  sep_dis_intro:()=>({title:'Simple distillation',obs:'Ink solution in a round-bottomed flask, connected to a Liebig condenser.',sym:'solution → pure solvent (distillate)',word:'turn the condenser water on, then heat',
+    why:'Distillation separates a solvent from a solution. Cold water goes in at the bottom of the condenser and out at the top, so the jacket stays full.'}),
+  sep_dis:()=>({title:'Pure water is collecting',obs:'The water boils. Its vapour condenses in the condenser and drips out colourless. The ink stays in the flask and gets darker.',sym:'thermometer reads 100 °C',word:'ink solution → water (distillate) + ink left behind',
+    why:'Only the water evaporates. The thermometer bulb is level with the side arm, so it measures the temperature of the vapour going into the condenser.'}),
+  sep_nowater:()=>({warn:true,title:'Condenser water is off!',obs:'Steam comes straight out of the end and nothing collects.',sym:'turn on the condenser water',word:'no cooling → no condensing',
+    why:'Without cold water flowing through the jacket, the vapour is not cooled enough to condense back to a liquid.'}),
+  sep_fra_intro:()=>({title:'Fractional distillation',obs:'A mixture of ethanol and water, with a fractionating column of glass beads.',sym:'ethanol b.p. 78 °C · water b.p. 100 °C',word:'heat, watch the thermometer, change the receiver when it rises',
+    why:'Liquids with different boiling points distil off at different temperatures. Watch the temperature graph.'}),
+  sep_fra:()=>({title:'Ethanol distils first',obs:'The temperature stops at about 78 °C while ethanol comes over.',sym:'78 °C plateau → ethanol; 100 °C → water',word:'mixture of liquids → fractions with different boiling points',
+    why:'In the column, vapour condenses and boils again many times, getting richer in ethanol each time. Change the receiver as soon as the temperature starts to rise. (Distillation can only reach about 96% ethanol.) Crude oil is separated the same way.'}),
+  sep_funnel:()=>({title:'Separating funnel',obs:'Oil and water form two layers. Water is denser, so it is the bottom layer.',sym:'water 1.00 g/cm³ · oil about 0.92 g/cm³',word:'immiscible liquids → two layers',
+    why:'Remove the stopper, open the tap and run off the bottom layer. Close the tap just as the boundary reaches it, then collect the top layer in a different beaker.'}),
+});
 /* =====================================================================
    LOOP
    ===================================================================== */
@@ -2525,6 +2997,7 @@ function frame(now){
   updateVisuals(dt,sdt);
   heatUpdate(dt,sdt);
   qaUpdate(dt);
+  spUpdate(dt,sdt);
   if(toastT>0){toastT-=dt;if(toastT<=0)$('toast').hidden=true}
   graphAcc+=dt;if(graphAcc>.2){graphAcc=0;drawGraph();drawTit();heatUI();updateReadouts();checkMissions()}
   renderer.render(scene,camera);
