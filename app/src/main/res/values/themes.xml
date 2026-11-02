@@ -1,0 +1,10 @@
+<resources>
+    <style name="LabTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/lab_bg</item>
+        <item name="android:statusBarColor">@color/lab_bg</item>
+        <item name="android:navigationBarColor">@color/lab_bg</item>
+        <item name="android:colorAccent">@color/lab_amber</item>
+    </style>
+    <color name="lab_bg">#0E1525</color>
+    <color name="lab_amber">#FFB547</color>
+</resources>

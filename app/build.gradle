@@ -1,0 +1,35 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'org.radon.reactionlab'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'org.radon.reactionlab'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Uses the debug key so the release APK installs without extra setup.
+            // For Google Play, replace this with your own signing config.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // Keep the 3D page uncompressed inside the APK so it loads fast.
+    androidResources {
+        noCompress 'html'
+    }
+}

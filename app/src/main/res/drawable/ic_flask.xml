@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Conical flask with glowing liquid and bubbles, drawn inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- liquid -->
+    <path android:fillColor="#FFB547"
+        android:pathData="M37,62 L71,62 L79,76 Q81,80 77,80 L31,80 Q27,80 29,76 Z" />
+    <!-- glass outline -->
+    <path android:strokeColor="#EEF2FB" android:strokeWidth="3.5" android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M47,28 L47,46 L29,76 Q27,80 31,80 L77,80 Q81,80 79,76 L61,46 L61,28" />
+    <path android:strokeColor="#EEF2FB" android:strokeWidth="3.5" android:strokeLineCap="round"
+        android:pathData="M44,28 L64,28" />
+    <!-- bubbles -->
+    <path android:fillColor="#5BD6C4" android:pathData="M54,52 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#5BD6C4" android:pathData="M58,40 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+    <path android:fillColor="#5BD6C4" android:pathData="M51,34 m-1.6,0 a1.6,1.6 0 1,0 3.2,0 a1.6,1.6 0 1,0 -3.2,0" />
+</vector>
