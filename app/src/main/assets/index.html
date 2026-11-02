@@ -103,7 +103,37 @@ h1 b{color:var(--amber);font-weight:800}
 .gas-head span{font-family:var(--mono);color:var(--amber)}
 .graph-wrap{position:relative;height:210px}
 #graph,#tGraph{width:100%;height:100%;display:block}
-.stage{order:0}#titPanel,#heatPanel{order:1}
+.stage{order:0}#titPanel,#heatPanel,#qaPanel{order:1}
+.qa-lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chp{background:var(--panel-2);border:2px solid var(--line);border-radius:10px;padding:5px 9px;font-family:var(--mono);font-size:.85rem;font-weight:700}
+.chp:hover{border-color:var(--amber)}
+.chp[aria-pressed="true"]{border-color:var(--amber);color:var(--amber);background:var(--bg)}
+.chp:disabled{opacity:.45;cursor:default}
+.qa-salt{background:var(--bg);border-radius:12px;padding:9px 11px;display:flex;align-items:center;gap:10px;border:2px solid transparent}
+.qa-salt .sw{width:22px;height:34px;border-radius:5px 5px 11px 11px;flex:none;box-shadow:inset 0 0 0 2px rgba(255,255,255,.3)}
+.qa-salt b{font-family:var(--display);font-size:1.15rem;display:block;line-height:1.15}
+.qa-salt span{font-size:.82rem;color:var(--muted);line-height:1.4}
+.qa-salt.warn{border-color:var(--danger)}
+.qa-obs{background:var(--panel-2);border-radius:12px;padding:9px 11px;display:grid;gap:4px;border-left:4px solid var(--amber)}
+.qa-obs:empty{display:none}
+.qa-obs .t{font-size:.78rem;font-weight:800;color:var(--teal)}
+.qa-obs .o{font-weight:800;line-height:1.4}
+.qa-obs .m{font-size:.86rem;color:#d4dcf0;line-height:1.45;font-weight:600}
+.qa-obs .e{font-family:var(--mono);font-size:.8rem;color:var(--amber);overflow-x:auto;white-space:nowrap}
+table.qa-tt td,table.qa-tt th{text-align:left;font-family:var(--body);font-weight:600;white-space:normal;line-height:1.35}
+table.qa-tt td:first-child{color:var(--muted);font-size:.78rem;min-width:120px}
+.qa-unknown{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--bg);border-radius:12px;padding:9px 11px}
+.qa-unknown>div:first-child{flex:1;min-width:150px;display:grid;gap:2px}
+.qa-unknown b{font-family:var(--display);font-size:1.25rem;line-height:1.1}
+.qa-score{display:grid;text-align:center}
+.qa-score span{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.qa-score b{font-family:var(--mono);font-size:1.3rem}
+.qa-ref summary{cursor:pointer;font-weight:800;color:var(--amber);padding:4px 0}
+.qa-ref .ttable-wrap{margin-top:8px}
+.qa-ref td,.qa-ref th{text-align:left!important;font-family:var(--body)!important;white-space:normal!important;font-size:.8rem;line-height:1.35}
+.qa-ref td:first-child{font-family:var(--mono)!important;color:var(--amber)}
+.tctrl .tst.qt{font-size:.8rem;padding:7px 10px}
 .glare{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 45% 42%,rgba(255,255,255,.95),rgba(235,240,255,.45) 35%,rgba(255,255,255,0) 70%);opacity:0;z-index:1}
 .readouts,.tools,.contents,.toast{z-index:2}
 .item .ptile.ion{font-size:1rem}#explainHost{order:2}#gasPanel{order:3}
@@ -240,6 +270,7 @@ table.tt{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numer
       <button data-mode="water" aria-pressed="false">Over water</button>
       <button data-mode="titration" aria-pressed="false">Titration</button>
       <button data-mode="heat" aria-pressed="false">Bunsen</button>
+      <button data-mode="qa" aria-pressed="false">Salt tests</button>
     </div>
     <button class="chip" id="missionsBtn">★ Missions <b id="mCount">0/14</b></button>
   </header>
@@ -279,6 +310,57 @@ table.tt{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numer
           <button class="tst" data-test="lime">🥛 Limewater</button>
           <button class="tst empty" id="emptyGas">↺ Empty &amp; new run</button>
         </div>
+      </div>
+
+      <div class="panel tit-grid" id="qaPanel" hidden>
+        <div class="gas-head"><h3>Salt analysis</h3><div class="mini" id="qaModeSeg"><button data-qm="exp" aria-pressed="true">Experiment</button><button data-qm="game" aria-pressed="false">Game</button></div></div>
+        <div id="qaExp" class="tit-grid" style="gap:6px">
+          <div class="qa-lbl">Cation (positive ion)</div><div class="chips" id="qaCats"></div>
+          <div class="qa-lbl">Anion (negative ion)</div><div class="chips" id="qaAns"></div>
+        </div>
+        <div class="qa-unknown" id="qaGame" hidden>
+          <div><span class="qa-lbl">Unknown salt</span><b id="qaUnkName">Salt A</b><span class="tmsg" id="qaUnkDesc"></span></div>
+          <div class="qa-score"><span>Tests used</span><b id="qaUsed">0</b></div>
+          <button class="tst" id="qaNew">New unknown</button>
+        </div>
+        <div class="qa-salt" id="qaSalt"></div>
+        <div class="qa-lbl">Tests for the cation</div>
+        <div class="tctrl" id="qaCatTests"></div>
+        <div class="qa-lbl">Tests for the anion</div>
+        <div class="tctrl" id="qaAnTests"></div>
+        <div class="qa-obs" id="qaObs"></div>
+        <div class="ttable-wrap"><table class="tt qa-tt"><thead><tr><th>Test</th><th>Observation</th></tr></thead><tbody id="qaRows"></tbody></table></div>
+        <div id="qaGuess" class="tit-grid" style="gap:6px" hidden>
+          <div class="qa-lbl">Your answer: cation</div><div class="chips" id="qaGC"></div>
+          <div class="qa-lbl">Your answer: anion</div><div class="chips" id="qaGA"></div>
+          <div class="tctrl"><button class="tst rec" id="qaCheck">Check my answer</button></div>
+          <p class="tmsg" id="qaRes"></p>
+        </div>
+        <details class="qa-ref"><summary>Qualitative analysis notes</summary>
+          <div class="ttable-wrap"><table class="tt"><thead><tr><th>Cation</th><th>Aqueous NaOH</th><th>Aqueous NH₃</th></tr></thead><tbody>
+            <tr><td>Al³⁺</td><td>white ppt, soluble in excess, giving a colourless solution</td><td>white ppt, insoluble in excess</td></tr>
+            <tr><td>NH₄⁺</td><td>ammonia produced on warming</td><td>–</td></tr>
+            <tr><td>Ca²⁺</td><td>white ppt, insoluble in excess</td><td>no ppt, or very slight white ppt</td></tr>
+            <tr><td>Cr³⁺</td><td>green ppt, soluble in excess</td><td>green ppt, insoluble in excess</td></tr>
+            <tr><td>Cu²⁺</td><td>light blue ppt, insoluble in excess</td><td>light blue ppt, soluble in excess, giving a dark blue solution</td></tr>
+            <tr><td>Fe²⁺</td><td>green ppt, insoluble in excess; ppt turns brown near the surface on standing</td><td>green ppt, insoluble in excess; ppt turns brown near the surface on standing</td></tr>
+            <tr><td>Fe³⁺</td><td>red-brown ppt, insoluble in excess</td><td>red-brown ppt, insoluble in excess</td></tr>
+            <tr><td>Zn²⁺</td><td>white ppt, soluble in excess, giving a colourless solution</td><td>white ppt, soluble in excess, giving a colourless solution</td></tr>
+          </tbody></table></div>
+          <div class="ttable-wrap"><table class="tt"><thead><tr><th>Anion</th><th>Test</th><th>Result</th></tr></thead><tbody>
+            <tr><td>CO₃²⁻</td><td>add dilute acid, then test for carbon dioxide gas</td><td>effervescence; carbon dioxide turns limewater milky</td></tr>
+            <tr><td>Cl⁻</td><td>acidify with dilute nitric acid, then add aqueous silver nitrate</td><td>white ppt</td></tr>
+            <tr><td>Br⁻</td><td>acidify with dilute nitric acid, then add aqueous silver nitrate</td><td>cream ppt</td></tr>
+            <tr><td>I⁻</td><td>acidify with dilute nitric acid, then add aqueous silver nitrate</td><td>yellow ppt</td></tr>
+            <tr><td>NO₃⁻</td><td>add aqueous sodium hydroxide, then aluminium foil; warm carefully</td><td>ammonia produced (damp red litmus turns blue)</td></tr>
+            <tr><td>SO₄²⁻</td><td>acidify with dilute nitric acid, then add aqueous barium nitrate</td><td>white ppt</td></tr>
+            <tr><td>SO₃²⁻</td><td>add a small volume of acidified aqueous potassium manganate(VII)</td><td>purple → colourless</td></tr>
+          </tbody></table></div>
+          <div class="ttable-wrap"><table class="tt"><thead><tr><th>Flame test</th><th>Colour</th></tr></thead><tbody>
+            <tr><td>Li⁺</td><td>red</td></tr><tr><td>Na⁺</td><td>yellow</td></tr><tr><td>K⁺</td><td>lilac</td></tr><tr><td>Ca²⁺</td><td>orange-red</td></tr><tr><td>Ba²⁺</td><td>light green</td></tr><tr><td>Cu²⁺</td><td>blue-green</td></tr>
+          </tbody></table></div>
+          <p class="note">Why acidify first? Nitric acid removes carbonate and sulfite ions, which would also give precipitates with silver or barium ions.</p>
+        </details>
       </div>
 
       <div class="panel tit-grid" id="heatPanel" hidden>
@@ -787,6 +869,7 @@ let shake=0;
 function camGoals(){
   const a=camera.aspect||1;
   if(G.mode==='beaker'){cam.tLook.set(0,1.25,0);cam.tR=a<.8?9.6:7.4}
+  else if(G.mode==='qa'){cam.tLook.set(.1,1.9,0);cam.tR=a<.8?11.5:a<1.3?8.8:7.6}
   else if(G.mode==='heat'){cam.tLook.set(.45,1.75,0);cam.tR=a<.8?11.5:a<1.3?9:7.8}
   else if(G.mode==='titration'){cam.tLook.set(.35,3.95,0);cam.tR=a<.8?17.5:a<1.3?13.5:12}
   else{cam.tLook.set(.55,1.8,0);cam.tR=a<.8?15.5:a<1.3?12.5:10.8}
@@ -995,6 +1078,9 @@ const MISSIONS=[
   {id:'anhydrous',t:'Make anhydrous copper(II) sulfate',h:'Heat blue copper(II) sulfate crystals in the basin until they turn white.'},
   {id:'water',t:'Test for water',h:'Add water to white anhydrous copper(II) sulfate.'},
   {id:'xvalue',t:'Find the water of crystallisation',h:'Weigh, heat to constant mass, weigh again, then calculate x.'},
+  {id:'qa_id',t:'Identify an unknown salt',h:'Salt tests → Game. Run tests, then pick the cation and the anion.'},
+  {id:'qa_fast',t:'Identify a salt in 4 tests or fewer',h:'Plan your tests. The colour of the solution is a clue too.'},
+  {id:'qa_five',t:'Identify 5 unknown salts',h:'Keep going in Salt tests → Game.'},
   {id:'unknown',t:'Calculate the unknown concentration',h:'Use your mean titre and the equation. Type your answer in the titration panel and press Check.'},
 ];
 let done={};try{done=JSON.parse(localStorage.getItem('rlab-missions')||'{}')||{}}catch(e){}
@@ -1461,27 +1547,28 @@ $('mClose').onclick=()=>$('mOv').hidden=true;
 $('mOv').addEventListener('click',e=>{if(e.target.id==='mOv')$('mOv').hidden=true});
 
 function setMode(m){
-  if(busy||HB.busy)return;
+  if(busy||HB.busy||QA.busy)return;
   G.mode=m;
   document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===m));
-  const tit=m==='titration',gas=m==='syringe'||m==='water',heat=m==='heat';
+  const tit=m==='titration',gas=m==='syringe'||m==='water',heat=m==='heat',qa=m==='qa';
   if(!heat)HB.gas=false;
   VS=m==='beaker'?VB:VF;
   cam.tTh=m==='beaker'?.3:tit?.18:.1;cam.tPh=m==='beaker'?1.15:tit?1.3:1.18;
   beakerG.visible=m==='beaker';flaskG.visible=m!=='beaker';bung.visible=gas;
   vg.position.set(gas?FX0:0,tit?.06:0,0);
-  syrG.visible=m==='syringe';watG.visible=m==='water';titG.visible=tit;decor.visible=!tit;vg.visible=!heat;heatG.visible=heat;
+  syrG.visible=m==='syringe';watG.visible=m==='water';titG.visible=tit;decor.visible=!tit;vg.visible=!heat&&!qa;heatG.visible=heat;qaG.visible=qa;
   CBUB.clear();
   T.flow='close';
   wash();emptyCollector();G.hist=[];
   $('gasPanel').hidden=!gas;$('roGas').hidden=!gas;$('titPanel').hidden=!tit;$('roBur').hidden=!tit;
-  $('heatPanel').hidden=!heat;$('shelfPanel').hidden=heat;['roPH','roT','roV'].forEach(i=>$(i).hidden=heat);$('roFlame').hidden=!heat;$('roMass').hidden=!(heat&&HB.act==='solid');$('contents').hidden=heat;
+  $('heatPanel').hidden=!heat;$('qaPanel').hidden=!qa;$('shelfPanel').hidden=heat||qa;['roPH','roT','roV'].forEach(i=>$(i).hidden=heat||qa);$('roFlame').hidden=!heat;$('roMass').hidden=!(heat&&HB.act==='solid');$('contents').hidden=heat||qa;
   camGoals();drawGraph(true);
   if(tit)setupTitration(true);
   if(heat){cam.tTh=.25;cam.tPh=1.22;heatUI();explainForce('bunsen')}
+  if(qa){cam.tTh=.12;cam.tPh=1.22;qaEnter()}
 }
 $('modeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.mode!==G.mode){setMode(b.dataset.mode);
-  toast(b.dataset.mode==='heat'?'Bunsen burner: turn the gas on, then open the air hole for a hot blue flame.':b.dataset.mode==='titration'?'Titration: open the burette tap, watch the indicator, and stop on the drop where the colour changes.':b.dataset.mode==='syringe'?'Gas syringe: the plunger moves out as gas is made. Add a reactant pair to the flask.':b.dataset.mode==='water'?'Water displacement: gas pushes water out of the upside-down measuring cylinder.':'Open beaker: great for indicators and Group 1 metals.')}});
+  toast(b.dataset.mode==='qa'?'Salt tests: each test uses a fresh portion of the salt solution.':b.dataset.mode==='heat'?'Bunsen burner: turn the gas on, then open the air hole for a hot blue flame.':b.dataset.mode==='titration'?'Titration: open the burette tap, watch the indicator, and stop on the drop where the colour changes.':b.dataset.mode==='syringe'?'Gas syringe: the plunger moves out as gas is made. Add a reactant pair to the flask.':b.dataset.mode==='water'?'Water displacement: gas pushes water out of the upside-down measuring cylinder.':'Open beaker: great for indicators and Group 1 metals.')}});
 
 /* ---------- graph ---------- */
 let graphAcc=0;
@@ -2010,7 +2097,7 @@ $('hAns').addEventListener('keydown',e=>{if(e.key==='Enter')$('hCheck').click()}
 /* ----- per-frame update ----- */
 const V3=(x,y,z)=>new THREE.Vector3(x,y,z);
 function heatUpdate(dt,sdt){
-  if(AC&&roarGain)roarGain.gain.setTargetAtTime(muted||G.mode!=='heat'||!HB.gas?0:HB.air?.11:.04,AC.currentTime,.12);
+  if(AC&&roarGain)roarGain.gain.setTargetAtTime(muted?0:G.mode==='qa'&&QA.flame?.09:G.mode!=='heat'||!HB.gas?0:HB.air?.11:.04,AC.currentTime,.12);
   if(G.mode!=='heat'){$('glare').style.opacity=0;return}
   const t=performance.now()/1000;
   // flame
@@ -2081,6 +2168,348 @@ function heatUpdate(dt,sdt){
   SMOKE.forEach(s=>{if(!s.on)return;s.t+=dt;const k=s.t/s.life;s.m.position.y+=s.vy*dt;s.m.position.x+=s.vx*dt;s.m.scale.setScalar(s.size*(.3+k*1.4));s.m.material.opacity=s.op*(1-k)*Math.min(1,s.t*4);if(k>=1){s.on=false;s.m.visible=false}});
   HSPARK.forEach(s=>{if(!s.on)return;s.t+=dt;s.v.y-=4*dt;s.m.position.addScaledVector(s.v,dt);s.m.material.opacity=1-s.t/s.life;if(s.t>=s.life){s.on=false;s.m.visible=false}});
 }
+
+/* =====================================================================
+   SALT ANALYSIS (qualitative analysis of cations and anions)
+   ===================================================================== */
+const qaG=new THREE.Group();scene.add(qaG);qaG.visible=false;
+const SUBD={1:'',2:'₂',3:'₃',4:'₄'};
+const cap=t=>t[0].toUpperCase()+t.slice(1);
+const aAn=w=>/^[aeiou]/i.test(w)?'An':'A';
+const QC={
+  Na:{n:'sodium',ion:'Na⁺',f:'Na',ch:1,flame:['yellow',0xffc21a]},
+  K:{n:'potassium',ion:'K⁺',f:'K',ch:1,flame:['lilac',0xc89bff]},
+  Li:{n:'lithium',ion:'Li⁺',f:'Li',ch:1,flame:['red',0xff2040]},
+  Ca:{n:'calcium',ion:'Ca²⁺',f:'Ca',ch:2,flame:['orange-red',0xff6424],naoh:{p:'white'},nh3:{p:'slight'}},
+  Ba:{n:'barium',ion:'Ba²⁺',f:'Ba',ch:2,flame:['light green',0x9dff5a]},
+  NH4:{n:'ammonium',ion:'NH₄⁺',f:'NH₄',poly:1,ch:1,amm:1},
+  Al:{n:'aluminium',ion:'Al³⁺',f:'Al',ch:3,naoh:{p:'white',ex:1},nh3:{p:'white'}},
+  Cr:{n:'chromium(III)',ion:'Cr³⁺',f:'Cr',ch:3,sol:'#4f8a5c',solW:'green',naoh:{p:'cgreen',ex:1,exCol:'#3f8f4f',exW:'green'},nh3:{p:'cgreen'}},
+  Cu:{n:'copper(II)',ion:'Cu²⁺',f:'Cu',ch:2,sol:'#3d8fe6',solW:'blue',flame:['blue-green',0x23e0c0],naoh:{p:'lblue'},nh3:{p:'lblue',ex:1,exCol:'#1a3cbc',exW:'dark blue'}},
+  Fe2:{n:'iron(II)',ion:'Fe²⁺',f:'Fe',ch:2,sol:'#bfe0a6',solW:'pale green',naoh:{p:'green',brown:1},nh3:{p:'green',brown:1}},
+  Fe3:{n:'iron(III)',ion:'Fe³⁺',f:'Fe',ch:3,sol:'#e0a040',solW:'yellow-brown',naoh:{p:'rb'},nh3:{p:'rb'}},
+  Zn:{n:'zinc',ion:'Zn²⁺',f:'Zn',ch:2,naoh:{p:'white',ex:1},nh3:{p:'white',ex:1}},
+};
+const QAn={
+  Cl:{n:'chloride',ion:'Cl⁻',f:'Cl',ch:1,ag:'white'},
+  Br:{n:'bromide',ion:'Br⁻',f:'Br',ch:1,ag:'cream'},
+  I:{n:'iodide',ion:'I⁻',f:'I',ch:1,ag:'yellow'},
+  SO4:{n:'sulfate',ion:'SO₄²⁻',f:'SO₄',poly:1,ch:2,ba:1},
+  SO3:{n:'sulfite',ion:'SO₃²⁻',f:'SO₃',poly:1,ch:2,acid:'so2'},
+  NO3:{n:'nitrate',ion:'NO₃⁻',f:'NO₃',poly:1,ch:1,al:1},
+  CO3:{n:'carbonate',ion:'CO₃²⁻',f:'CO₃',poly:1,ch:2,acid:'co2'},
+};
+const QOK={Na:'Cl Br I SO4 SO3 NO3 CO3',K:'Cl Br I SO4 SO3 NO3 CO3',NH4:'Cl Br I SO4 SO3 NO3 CO3',Li:'Cl Br I SO4 NO3',Ca:'Cl Br I NO3',Ba:'Cl Br I NO3',
+  Al:'Cl SO4 NO3',Cr:'Cl SO4 NO3',Cu:'Cl Br SO4 NO3',Fe2:'Cl SO4',Fe3:'Cl SO4 NO3',Zn:'Cl Br I SO4 NO3'};
+const qaOK=(c,a)=>QOK[c].split(' ').includes(a);
+const PPTC={white:['white','#f2f2f2'],slight:['very slight white','#f2f2f2'],lblue:['light blue','#7cbcf0'],green:['green','#55783e'],cgreen:['grey-green','#6c8c6a'],rb:['red-brown','#9a4a1e'],cream:['cream','#ecdcae'],yellow:['yellow','#f0d84a']};
+function qaWhyNot(c,a){
+  const C=QC[c];
+  if(a==='CO3')return`${cap(C.n)} carbonate doesn't dissolve well in water, so you can't make a solution of it. Sodium, potassium and ammonium carbonates are soluble.`;
+  if(a==='SO4')return`${cap(C.n)} sulfate is insoluble, so it can't be made into a solution. That is exactly why barium ions are used to test for sulfate!`;
+  if(a==='I'&&(c==='Cu'||c==='Fe3'))return`${cap(C.n)} ions react with iodide ions and turn them into iodine, so this salt can't be made as a simple solution.`;
+  if(a==='SO3')return'This sulfite is insoluble or breaks down. Sodium, potassium and ammonium sulfites dissolve.';
+  return'This salt isn\'t on the school lab shelf. Try a different pair.';
+}
+const gcd=(x,y)=>y?gcd(y,x%y):x;
+function saltFormula(c,a){const C=QC[c],A=QAn[a],l=C.ch*A.ch/gcd(C.ch,A.ch),nc=l/C.ch,na=l/A.ch;
+  const part=(f,n,poly)=>n===1?f:poly?`(${f})${SUBD[n]}`:`${f}${SUBD[n]}`;return part(C.f,nc,C.poly)+part(A.f,na,A.poly)}
+const saltName=(c,a)=>`${QC[c].n} ${QAn[a].n}`;
+const solCol=c=>QC[c].sol||'#dfe9f5';
+const solWord=c=>QC[c].solW||'colourless';
+const QTESTS={
+  naoh:{k:'c',l:'NaOH(aq), then excess',row:'Aqueous NaOH, then excess'},
+  nh3:{k:'c',l:'NH₃(aq), then excess',row:'Aqueous NH₃, then excess'},
+  warm:{k:'c',l:'Warm with NaOH + damp litmus',row:'Warm with NaOH(aq); damp red litmus'},
+  flame:{k:'c',l:'Flame test',row:'Flame test'},
+  acid:{k:'a',l:'Dilute HCl, gas → limewater',row:'Dilute acid; gas into limewater'},
+  ag:{k:'a',l:'HNO₃ then AgNO₃(aq)',row:'Dilute HNO₃, then AgNO₃(aq)'},
+  ba:{k:'a',l:'HNO₃ then Ba(NO₃)₂(aq)',row:'Dilute HNO₃, then Ba(NO₃)₂(aq)'},
+  kmno4:{k:'a',l:'Acidified KMnO₄(aq)',row:'Acidified KMnO₄(aq)'},
+  al:{k:'a',l:'NaOH + Al foil, warm + litmus',row:'NaOH(aq) + Al foil, warm; damp red litmus'},
+};
+function pptSig(r){return r?r.p+(r.ex?'+':'')+(r.brown?'b':''):'none'}
+function candidates(key){const sig=pptSig(QC[QA.c][key]);return Object.keys(QC).filter(k=>pptSig(QC[k][key])===sig&&!(key==='naoh'&&QC[k].amm!==QC[QA.c].amm))}
+const ionList=ks=>{const a=ks.map(k=>QC[k].ion);return a.length>1?a.slice(0,-1).join(', ')+' or '+a[a.length-1]:a[0]};
+function pptSentence(r,ex){
+  if(!r)return'No precipitate.';
+  if(r.p==='slight')return'No precipitate, or only a very slight white one.';
+  const w=PPTC[r.p][0];let o=`${aAn(w)} ${w} precipitate forms.`;
+  if(ex){o+=r.ex?` It dissolves in excess, giving a ${r.exW||'colourless'} solution.`:' It does not dissolve in excess.';if(r.brown)o+=' On standing, it turns brown near the surface.'}
+  return o;
+}
+function qaObs(test){
+  const c=QA.c,a=QA.a,C=QC[c],A=QAn[a];
+  const fizz=A.acid?'Fizzing when the acid is added. ':'';
+  switch(test){
+  case'naoh':case'nh3':{const r=C[test];const cand=candidates(test);
+    const ohN=C.ch===1?'':C.ch;
+    return{obs:pptSentence(r,true)+(C.amm&&test==='naoh'?' (Warm it to test for ammonia.)':''),
+      eq:r&&r.p!=='slight'?`${C.ion}(aq) + ${ohN}OH⁻(aq) → ${C.f}(OH)${SUBD[C.ch]}(s)`:'',
+      means:cand.length===1?`Only ${C.ion} gives this result.`:`Could be ${ionList(cand)}. ${test==='naoh'?'Try aqueous ammonia, a flame test or warming.':'Compare with your NaOH result.'}`};}
+  case'warm':return C.amm?{obs:'A gas is given off that turns damp red litmus paper blue: ammonia.',eq:'NH₄⁺(aq) + OH⁻(aq) → NH₃(g) + H₂O(l)',means:'Only ammonium ions give ammonia when warmed with NaOH alone.'}
+    :{obs:(C.naoh?pptSentence(C.naoh,false)+' ':'')+'No ammonia: the damp red litmus paper stays red.',eq:'',means:'Not an ammonium salt.'};
+  case'flame':return C.flame?{obs:`${cap(C.flame[0])} flame.`,eq:`${C.ion} → ${C.flame[0]} flame`,means:`A ${C.flame[0]} flame shows ${C.ion} ions.`}
+    :{obs:'No characteristic flame colour.',eq:'',means:'Only some metal ions colour the flame (Li⁺, Na⁺, K⁺, Ca²⁺, Ba²⁺, Cu²⁺).'};
+  case'acid':if(A.acid==='co2')return{obs:'Fizzing (effervescence). The gas turns limewater milky.',eq:'CO₃²⁻(aq) + 2H⁺(aq) → CO₂(g) + H₂O(l)',means:'Carbon dioxide is given off, so this is a carbonate.'};
+    if(A.acid==='so2')return{obs:'A little fizzing and a sharp, choking smell. The limewater goes slightly cloudy.',eq:'SO₃²⁻(aq) + 2H⁺(aq) → SO₂(g) + H₂O(l)',means:'This gas is sulfur dioxide, not carbon dioxide (it smells). Confirm sulfite with acidified potassium manganate(VII).'};
+    return{obs:'No fizzing. The limewater stays clear.',eq:'',means:'Not a carbonate.'};
+  case'ag':{if(A.ag){const w=A.ag;return{obs:fizz+`${aAn(w)} ${w} precipitate forms.`,eq:`Ag⁺(aq) + ${A.ion}(aq) → Ag${A.f}(s)`,means:`A ${w} precipitate shows ${A.n} ions (white = chloride, cream = bromide, yellow = iodide).`}}
+    return{obs:fizz+'No precipitate.',eq:'',means:'No chloride, bromide or iodide ions.'+(A.acid?' The nitric acid removed the '+A.n+' ions first, so they could not give a false result.':'')};}
+  case'ba':if(A.ba)return{obs:'A white precipitate forms.',eq:'Ba²⁺(aq) + SO₄²⁻(aq) → BaSO₄(s)',means:'Barium sulfate is insoluble, so this shows sulfate ions.'};
+    return{obs:fizz+'No precipitate.',eq:'',means:'No sulfate ions.'+(A.acid?' The nitric acid removed the '+A.n+' ions first, so they could not give a false result.':'')};
+  case'kmno4':if(a==='SO3')return{obs:'The purple colour disappears: the solution turns colourless.',eq:'MnO₄⁻ (purple) → Mn²⁺ (colourless); SO₃²⁻ → SO₄²⁻',means:'Sulfite ions are reducing agents: they decolourise acidified potassium manganate(VII).'};
+    if(c==='Fe2')return{obs:'The purple colour disappears.',eq:'Fe²⁺ → Fe³⁺ (oxidised); MnO₄⁻ → Mn²⁺',means:'Iron(II) ions are reducing agents too, so here this is NOT proof of sulfite. Use the other anion tests.'};
+    if(a==='I')return{obs:'The purple colour fades and the solution turns yellow-brown.',eq:'2I⁻(aq) → I₂(aq) + 2e⁻',means:'Iodide ions are oxidised to brown iodine. Use the silver nitrate test to confirm iodide.'};
+    return{obs:'The solution stays purple.',eq:'',means:'No sulfite ions (no reducing agent present).'};
+  case'al':{const nh3=A.al||C.amm;const pre=C.naoh?pptSentence(C.naoh,false)+' ':'';
+    if(nh3)return{obs:pre+'A gas is given off that turns damp red litmus paper blue: ammonia.',eq:A.al?'NO₃⁻ is reduced to NH₃ by aluminium in alkali':'NH₄⁺(aq) + OH⁻(aq) → NH₃(g) + H₂O(l)',
+      means:A.al?('Aluminium turns nitrate ions into ammonia, so this shows nitrate.'+(C.amm?' But ammonium ions also give ammonia with NaOH, so warm without aluminium first to check!':'')):'Ammonium ions give ammonia with NaOH even without aluminium, so this does NOT prove nitrate.'};
+    return{obs:pre+'No ammonia: the damp red litmus paper stays red.',eq:'',means:'No nitrate ions.'};}
+  }
+}
+
+/* ----- 3D: rack, test tube, Bunsen, limewater rig ----- */
+const QA={mode:'exp',c:'Cu',a:'SO4',busy:false,seq:null,si:0,st:0,
+  col:new THREE.Color('#3d8fe6'),tCol:new THREE.Color('#3d8fe6'),op:.7,tOp:.7,L:1.45,tL:1.45,
+  ppt:0,tPpt:0,pptCol:new THREE.Color('#ffffff'),brown:false,brownK:0,bubR:0,limeBub:0,limeMilk:0,tLimeMilk:0,litmus:0,tLitmus:0,
+  flame:false,tint:null,tintS:0,rows:[],used:new Set(),gameN:0,label:'Salt A',gsel:{c:null,a:null},solved:false,last:null};
+let qaStats={solved:0};try{qaStats=JSON.parse(localStorage.getItem('rlab-qa')||'{"solved":0}')}catch(e){}
+let qTube,qLiqCyl,qLiqMat,qLitmus,qRig,qLimeMat,qBunFl,qDropper,qDrops,qStream,qFoil,qWire,qWireLoop,qBunLight;
+(function(){
+  const wood=new THREE.MeshLambertMaterial({color:0x8a5a3a});
+  const base=new THREE.Mesh(new THREE.BoxGeometry(3.6,.1,.9),wood);base.position.set(-.55,.25,0);qaG.add(base);
+  const topb=new THREE.Mesh(new THREE.BoxGeometry(3.6,.08,.9),wood);topb.position.set(-.55,1.0,0);qaG.add(topb);
+  [-2.3,1.2].forEach(x=>{const p=new THREE.Mesh(new THREE.BoxGeometry(.1,.8,.8),wood);p.position.set(x,.65,0);qaG.add(p)});
+  // spare clean tubes in the rack
+  [-.75,-1.95].forEach(x=>{const t=new THREE.Mesh(new THREE.CylinderGeometry(.24,.24,2.4,20,1,true),glassMat);t.position.set(x,1.5,0);t.renderOrder=10;qaG.add(t)});
+  // main tube
+  qTube=new THREE.Group();qaG.add(qTube);
+  const tg=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,2.7,28,1,true),glassMat);tg.position.y=1.95;tg.renderOrder=10;qTube.add(tg);
+  const tb=new THREE.Mesh(new THREE.SphereGeometry(.28,28,14,0,Math.PI*2,Math.PI/2,Math.PI/2),glassMat);tb.position.y=.6;tb.renderOrder=10;qTube.add(tb);
+  const lip=new THREE.Mesh(new THREE.TorusGeometry(.29,.025,8,28),rimMat);lip.rotation.x=Math.PI/2;lip.position.y=3.3;qTube.add(lip);
+  qLiqMat=new THREE.MeshPhongMaterial({color:0x3d8fe6,transparent:true,opacity:.7,shininess:90,depthWrite:false});
+  const lb=new THREE.Mesh(new THREE.SphereGeometry(.25,24,12,0,Math.PI*2,Math.PI/2,Math.PI/2),qLiqMat);lb.position.y=.6;lb.renderOrder=3;qTube.add(lb);
+  const cg=new THREE.CylinderGeometry(.25,.25,1,24);cg.translate(0,.5,0);qLiqCyl=new THREE.Mesh(cg,qLiqMat);qLiqCyl.position.y=.6;qLiqCyl.renderOrder=3;qTube.add(qLiqCyl);
+  qLitmus=new THREE.Mesh(new THREE.BoxGeometry(.75,.02,.24),new THREE.MeshLambertMaterial({color:0xd9474f}));qLitmus.position.set(.18,3.5,.05);qLitmus.rotation.set(.5,0,-.12);qLitmus.visible=false;qTube.add(qLitmus);
+  qDropper=new THREE.Group();qTube.add(qDropper);qDropper.visible=false;qDropper.position.set(0,4.05,0);
+  const bulb=new THREE.Mesh(new THREE.SphereGeometry(.11,16,12),new THREE.MeshLambertMaterial({color:0xd2453c}));bulb.position.y=.42;bulb.scale.y=1.3;
+  qDropper.add(bulb,new THREE.Mesh(new THREE.CylinderGeometry(.05,.025,.65,12),bGlass));
+  qDrops=[0,1,2,3].map(()=>{const m=new THREE.Mesh(sph,new THREE.MeshPhongMaterial({color:0xeef3fa,transparent:true,opacity:.9}));m.scale.setScalar(.045);m.visible=false;qTube.add(m);return m});
+  const sg=new THREE.CylinderGeometry(.03,.035,1,8);sg.translate(0,-.5,0);
+  qStream=new THREE.Mesh(sg,new THREE.MeshPhongMaterial({color:0xeef3fa,transparent:true,opacity:.7,depthWrite:false}));qStream.visible=false;qStream.renderOrder=7;qTube.add(qStream);
+  qFoil=new THREE.Mesh(new THREE.IcosahedronGeometry(.08,0),new THREE.MeshPhongMaterial({color:0xd5d9de,shininess:140,flatShading:true}));qFoil.visible=false;qTube.add(qFoil);
+  // limewater rig (bung, delivery tube, limewater tube)
+  qRig=new THREE.Group();qaG.add(qRig);qRig.visible=false;
+  const bg=new THREE.Mesh(new THREE.CylinderGeometry(.31,.26,.3,20),new THREE.MeshLambertMaterial({color:0x8a2f2a}));bg.position.y=3.35;qRig.add(bg);
+  qRig.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V3(0,3.45,0),V3(0,3.85,0),V3(-.2,4.05,0),V3(-1.15,4.05,0),V3(-1.35,3.85,0),V3(-1.35,1.0,0)],false,'centripetal'),80,.04,8,false),tubeMat));
+  const lt=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,2.7,28,1,true),glassMat);lt.position.set(-1.35,1.95,0);lt.renderOrder=10;qRig.add(lt);
+  const ltb=new THREE.Mesh(new THREE.SphereGeometry(.28,28,14,0,Math.PI*2,Math.PI/2,Math.PI/2),glassMat);ltb.position.set(-1.35,.6,0);qRig.add(ltb);
+  qLimeMat=new THREE.MeshPhongMaterial({color:0xe6eef4,transparent:true,opacity:.3,depthWrite:false,shininess:80});
+  const ll=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,1.3,24),qLimeMat);ll.position.set(-1.35,1.25,0);ll.renderOrder=3;qRig.add(ll);
+  const llb=new THREE.Mesh(new THREE.SphereGeometry(.25,24,12,0,Math.PI*2,Math.PI/2,Math.PI/2),qLimeMat);llb.position.set(-1.35,.6,0);qRig.add(llb);
+  // small Bunsen burner
+  const bx=1.95,metal=new THREE.MeshPhongMaterial({color:0xb8bec8,shininess:90});
+  const bb=new THREE.Mesh(new THREE.CylinderGeometry(.3,.36,.08,28),new THREE.MeshPhongMaterial({color:0x2f3440}));bb.position.set(bx,.04,0);qaG.add(bb);
+  const br=new THREE.Mesh(new THREE.CylinderGeometry(.08,.085,1.0,20),metal);br.position.set(bx,.58,0);qaG.add(br);
+  const cl=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,.14,20),new THREE.MeshPhongMaterial({color:0xc9a24a}));cl.position.set(bx,.25,0);qaG.add(cl);
+  qBunFl=new THREE.Group();qBunFl.position.set(bx,1.08,0);qaG.add(qBunFl);qBunFl.visible=false;
+  qBunFl.add(coneUp(.12,.85,0x5a6cff,.38),coneUp(.065,.34,0x8fd0ff,.75));
+  qBunLight=new THREE.PointLight(0x7f8cff,0,4);qBunLight.position.set(bx,1.6,0);qaG.add(qBunLight);
+  // nichrome wire for flame tests
+  qWire=new THREE.Group();qaG.add(qWire);qWire.visible=false;
+  const rod=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.4,10),new THREE.MeshPhongMaterial({color:0xdfe9ff,transparent:true,opacity:.6}));rod.rotation.z=Math.PI/2+.3;rod.position.set(1.4,.42,0);qWire.add(rod);
+  const w1=new THREE.Mesh(new THREE.CylinderGeometry(.009,.009,.7,6),new THREE.MeshPhongMaterial({color:0x9aa0a8}));w1.rotation.z=Math.PI/2+.3;w1.position.set(.38,.1,0);qWire.add(w1);
+  qWireLoop=new THREE.Mesh(new THREE.TorusGeometry(.05,.011,6,16),new THREE.MeshPhongMaterial({color:0x9aa0a8,emissive:0x000000}));qWire.add(qWireLoop);
+})();
+const QP=pool(130,()=>new THREE.Mesh(ico,new THREE.MeshLambertMaterial({color:0xffffff})),qTube);
+const QB=pool(70,()=>{const m=new THREE.Mesh(sph,bubMat);m.renderOrder=6;return m},qTube);
+const LB=pool(40,()=>{const m=new THREE.Mesh(sph,bubMat);m.renderOrder=6;return m},qaG);
+const BROWN=new THREE.Color('#8a5426'),LITBLUE=new THREE.Color('#3c63d8'),LITRED=new THREE.Color('#d9474f');
+
+function qaReset(){
+  QA.tCol.set(solCol(QA.c));QA.col.copy(QA.tCol);QA.op=QA.tOp=QC[QA.c].sol?.72:.32;QA.L=QA.tL=1.85;
+  QA.ppt=QA.tPpt=0;QP.clear();QB.clear();LB.clear();QA.brown=false;QA.brownK=0;QA.bubR=0;QA.limeBub=0;
+  QA.litmus=QA.tLitmus=0;qLitmus.visible=false;qRig.visible=false;QA.limeMilk=QA.tLimeMilk=0;qFoil.visible=false;
+  QA.flame=false;QA.tint=null;qTube.position.set(0,0,0);qTube.rotation.z=0;qDropper.visible=false;qStream.visible=false;qDrops.forEach(d=>d.visible=false);qWire.visible=false;
+}
+const qStep=(d,u,end,start)=>({d,u,end,start});
+function qDrops4(dl,col,onEnd){
+  return qStep(1.0,k=>{qDropper.visible=true;
+    qDrops.forEach((d,i)=>{const t=k-(.12+i*.18);if(t<0||d.userData.done){d.visible=false;return}const y=3.85-9*t*t;
+      if(y>QA.L){d.visible=true;d.position.set(0,y,0)}else{d.visible=false;d.userData.done=true;SFX.drip()}})},
+    ()=>{qDropper.visible=false;qDrops.forEach(d=>d.visible=false);QA.tL=Math.min(2.9,QA.tL+dl);onEnd&&onEnd()},
+    ()=>{qDrops.forEach(d=>{d.userData.done=false;d.material.color.set(col||'#eef3fa')})});
+}
+function qPour(dl,col,onEnd){let base=0;
+  return qStep(1.1,k=>{qDropper.visible=true;qStream.visible=k<.9;qStream.material.color.set(col||'#eef3fa');qStream.position.set(0,3.85,0);qStream.scale.set(1,Math.max(.05,3.85-QA.L),1);QA.tL=Math.min(2.9,base+dl*Math.min(1,k/.9))},
+    ()=>{qStream.visible=false;qDropper.visible=false;onEnd&&onEnd()},()=>{base=QA.tL;noise(.9,.05,'lowpass',900)});
+}
+const qWait=(d,u,end)=>qStep(d,u,end);
+function qToFlame(){return qStep(1.1,k=>{const up=ease(Math.min(1,k/.35)),ac=ease(clamp((k-.35)/.35,0,1)),dn=ease(clamp((k-.7)/.3,0,1));
+  qTube.position.set(1.95*ac,1.9*up-.6*dn,0);qTube.rotation.z=.3*ac})}
+function qFromFlame(){return qStep(1.1,k=>{const up=ease(Math.min(1,k/.3)),ac=ease(clamp((k-.3)/.4,0,1)),dn=ease(clamp((k-.7)/.3,0,1));
+  qTube.position.set(1.95*(1-ac),1.3+.6*up-1.9*dn,0);qTube.rotation.z=.3*(1-ac)})}
+function qaRun(test){
+  if(QA.busy||!qaOK(QA.c,QA.a))return;audio();
+  const C=QC[QA.c],A=QAn[QA.a];
+  const S=[qStep(.5,null,null,qaReset)];
+  if(test==='naoh'||test==='nh3'){const r=C[test];
+    S.push(qDrops4(.08,'#eef3fa',()=>{if(r){QA.pptCol.set(PPTC[r.p][1]);QA.tPpt=r.p==='slight'?.15:1}}));
+    S.push(qWait(1.2));
+    S.push(qPour(.45,'#eef3fa',()=>{if(r&&r.ex){QA.tPpt=0;QA.tCol.set(r.exCol||'#e3ecf6');QA.tOp=r.exCol?.85:.3}}));
+    S.push(qWait(r&&r.brown?3:1.4,k=>{if(r&&r.brown&&k>.15)QA.brown=true}));
+  }else if(test==='warm'||test==='al'){
+    const amm=C.amm||(test==='al'&&A.al);
+    S.push(qDrops4(.12,'#eef3fa',()=>{const r=C.naoh;if(r){QA.pptCol.set(PPTC[r.p][1]);QA.tPpt=r.p==='slight'?.15:.9}}));
+    if(test==='al')S.push(qStep(.7,k=>{qFoil.visible=true;qFoil.position.set(.05,Math.max(.55,3.6-6*k*k),0);qFoil.rotation.set(k*4,k*3,0)}));
+    S.push(qToFlame());
+    S.push(qStep(3.0,k=>{QA.flame=true;qLitmus.visible=true;QA.bubR=test==='al'?14:4;if(amm&&k>.3)QA.tLitmus=1},()=>{QA.bubR=0;QA.flame=false}));
+    S.push(qFromFlame());
+    S.push(qWait(.4));
+  }else if(test==='flame'){
+    const W0=V3(2.9,3.9,.3),dip=()=>V3(.02,QA.L-.03,0),UP=V3(.05,3.9,0),FL=V3(1.97,1.62,0);
+    S.push(qStep(.8,k=>{qWire.visible=true;qWireLoop.material.emissive.setHex(0);qWire.position.lerpVectors(W0,dip(),ease(k))}));
+    S.push(qStep(.6,k=>qWire.position.lerpVectors(dip(),UP,ease(k))));
+    S.push(qStep(.8,k=>{QA.flame=true;qWire.position.lerpVectors(UP,FL,ease(k))}));
+    S.push(qStep(2.8,k=>{QA.flame=true;QA.tint=C.flame?C.flame[1]:null;qWireLoop.material.emissive.setRGB(.9,.4,.1)}));
+    S.push(qStep(.7,k=>{QA.tint=null;qWire.position.lerpVectors(FL,W0,ease(k))},()=>{qWire.visible=false;QA.flame=false;qWireLoop.material.emissive.setHex(0)}));
+  }else if(test==='acid'){
+    S.push(qDrops4(.15,'#eef3fa'));
+    S.push(qStep(.4,null,()=>{qRig.visible=true}));
+    S.push(qStep(3.0,k=>{QA.bubR=A.acid==='co2'?55:A.acid==='so2'?10:0;QA.limeBub=A.acid==='co2'?22:A.acid==='so2'?5:0;if(A.acid&&k>.3)QA.tLimeMilk=A.acid==='co2'?1:.3},()=>{QA.bubR=0;QA.limeBub=0}));
+    S.push(qWait(1.0));
+  }else if(test==='ag'||test==='ba'){
+    S.push(qDrops4(.1,'#eef3fa',()=>{if(A.acid)QA.bubR=A.acid==='co2'?40:8}));
+    S.push(qWait(.9,null,()=>{QA.bubR=0}));
+    const hit=test==='ag'?A.ag:(A.ba?'white':null);
+    S.push(qDrops4(.1,'#eef3fa',()=>{if(hit){QA.pptCol.set(PPTC[hit][1]);QA.tPpt=.85}}));
+    S.push(qWait(1.5));
+  }else if(test==='kmno4'){
+    S.push(qDrops4(.08,'#8a2bb0',()=>{QA.tCol.set('#8a2bb0');QA.tOp=.82}));
+    S.push(qWait(2.2,k=>{if(k>.3&&!QA._dec){QA._dec=true;
+      if(QA.a==='SO3'){QA.tCol.set('#e6edf5');QA.tOp=.32}
+      else if(QA.c==='Fe2'){QA.tCol.set('#efe4ad');QA.tOp=.42}
+      else if(QA.a==='I'){QA.tCol.set('#c4862a');QA.tOp=.72}}},()=>{QA._dec=false}));
+  }
+  S.push(qStep(.05,null,()=>qaDone(test)));
+  QA.seq=S;QA.si=0;QA.st=0;QA.busy=true;QA._dec=false;qaButtons();
+  $('qaObs').innerHTML=`<span class="t">${QTESTS[test].row}</span><span class="m">Watch the test tube…</span>`;
+}
+function qaDone(test){
+  const r=qaObs(test);
+  const i=QA.rows.findIndex(x=>x.test===test);const row={test,obs:r.obs};if(i>=0)QA.rows[i]=row;else QA.rows.push(row);
+  QA.used.add(test);
+  const exp=QA.mode==='exp';
+  $('qaObs').innerHTML=`<span class="t">${QTESTS[test].row}</span><span class="o">${r.obs}</span>`+(exp&&r.means?`<span class="m">${r.means}</span>`:'')+(exp&&r.eq?`<span class="e">${r.eq}</span>`:'');
+  qaRender();
+}
+
+/* ----- UI ----- */
+function chipsHTML(obj,sel,dis,attr){return Object.keys(obj).map(k=>`<button class="chp" data-${attr}="${k}" aria-pressed="${k===sel}"${dis&&dis(k)?' disabled':''}>${obj[k].ion}</button>`).join('')}
+function qaRender(){
+  const game=QA.mode==='game';
+  $('qaExp').hidden=game;$('qaGame').hidden=!game;$('qaGuess').hidden=!game;
+  document.querySelectorAll('#qaModeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.qm===QA.mode));
+  if(!game){
+    $('qaCats').innerHTML=chipsHTML(QC,QA.c,null,'qc');
+    $('qaAns').innerHTML=chipsHTML(QAn,QA.a,null,'qa');
+    const ok=qaOK(QA.c,QA.a),sw=$('qaSalt');sw.classList.toggle('warn',!ok);
+    sw.innerHTML=ok?`<i class="sw" style="background:${solCol(QA.c)}"></i><div><b>${cap(saltName(QA.c,QA.a))} · <span style="font-family:var(--mono);color:var(--amber);font-size:1rem">${saltFormula(QA.c,QA.a)}</span></b><span>${cap(solWord(QA.c))} solution. Pick a test below.</span></div>`
+      :`<div><b>Can't make this solution</b><span>${qaWhyNot(QA.c,QA.a)}</span></div>`;
+  }else{
+    $('qaUnkName').textContent=QA.label;
+    $('qaUnkDesc').textContent=`A ${solWord(QA.c)} solution. Use tests to find its cation and anion.`;
+    $('qaUsed').textContent=QA.used.size;
+    $('qaSalt').innerHTML=`<i class="sw" style="background:${solCol(QA.c)}"></i><div><b>${QA.label}: ${QA.solved?saltFormula(QA.c,QA.a):'?'}</b><span>${QA.solved?cap(saltName(QA.c,QA.a)):'Identity unknown'}</span></div>`;
+    $('qaSalt').classList.remove('warn');
+    $('qaGC').innerHTML=chipsHTML(QC,QA.gsel.c,null,'gc');
+    $('qaGA').innerHTML=chipsHTML(QAn,QA.gsel.a,null,'ga');
+  }
+  const btn=(k)=>Object.keys(QTESTS).filter(t=>QTESTS[t].k===k).map(t=>`<button class="tst qt${QA.used.has(t)?' on':''}" data-qt="${t}">${QTESTS[t].l}</button>`).join('');
+  $('qaCatTests').innerHTML=btn('c');$('qaAnTests').innerHTML=btn('a');
+  $('qaRows').innerHTML=QA.rows.length?QA.rows.map(r=>`<tr><td>${QTESTS[r.test].row}</td><td>${r.obs}</td></tr>`).join(''):'<tr><td colspan="2" style="color:var(--muted)">No tests yet. Each test uses a fresh portion of the solution.</td></tr>';
+  qaButtons();
+}
+function qaButtons(){
+  const ok=qaOK(QA.c,QA.a);
+  document.querySelectorAll('#qaPanel [data-qt]').forEach(b=>b.disabled=QA.busy||!ok);
+  document.querySelectorAll('#qaPanel [data-qc],#qaPanel [data-qa],#qaPanel [data-qm],#qaNew').forEach(b=>b.disabled=QA.busy);
+}
+function qaSetSalt(c,a){QA.c=c;QA.a=a;QA.rows=[];QA.used=new Set();$('qaObs').innerHTML='';qaReset();qaRender()}
+function qaNewUnknown(){
+  const all=[];Object.keys(QOK).forEach(c=>QOK[c].split(' ').forEach(a=>all.push([c,a])));
+  let pick;do{pick=all[Math.floor(Math.random()*all.length)]}while(QA.last&&pick[0]===QA.last[0]&&pick[1]===QA.last[1]);
+  QA.last=pick;QA.gameN++;QA.label='Salt '+String.fromCharCode(65+(QA.gameN-1)%26);
+  QA.gsel={c:null,a:null};QA.solved=false;$('qaRes').textContent='';
+  qaSetSalt(pick[0],pick[1]);
+}
+function qaEnter(){
+  if(QA.mode==='game'&&!QA.gameN)qaNewUnknown();else{qaReset();qaRender()}
+  explainForce('qa_intro');
+}
+HEXP.qa_intro=()=>({title:'Salt analysis',obs:'A test tube of salt solution stands in the rack, with a Bunsen burner for warming and flame tests.',
+  why:'A salt is made of a positive ion (the cation: a metal or ammonium) and a negative ion (the anion). Each test uses a fresh portion of the solution. Sodium hydroxide and ammonia solutions are added a few drops at a time, then in excess. Match what you see with the qualitative analysis notes. In Game mode, identify the unknown salt using as few tests as you can.',
+  word:'salt = cation + anion',sym:'e.g. CuSO₄ → Cu²⁺ + SO₄²⁻'});
+$('qaPanel').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b||b.disabled)return;
+  if(b.dataset.qt){qaRun(b.dataset.qt);return}
+  if(b.dataset.qm){if(QA.busy||b.dataset.qm===QA.mode)return;QA.mode=b.dataset.qm;if(QA.mode==='game')qaNewUnknown();else qaSetSalt('Cu','SO4');return}
+  if(b.dataset.qc){qaSetSalt(b.dataset.qc,QA.a);return}
+  if(b.dataset.qa){qaSetSalt(QA.c,b.dataset.qa);return}
+  if(b.dataset.gc){QA.gsel.c=b.dataset.gc;qaRender();return}
+  if(b.dataset.ga){QA.gsel.a=b.dataset.ga;qaRender();return}
+  if(b.id==='qaNew'){qaNewUnknown();return}
+  if(b.id==='qaCheck'){
+    if(QA.solved){toast('Solved! Press New unknown for another salt.');return}
+    if(!QA.gsel.c||!QA.gsel.a){toast('Pick a cation and an anion first.');return}
+    const okC=QA.gsel.c===QA.c,okA=QA.gsel.a===QA.a;
+    if(okC&&okA){
+      QA.solved=true;const n=QA.used.size,stars=n<=4?3:n<=6?2:1;
+      qaStats.solved=(qaStats.solved||0)+1;try{localStorage.setItem('rlab-qa',JSON.stringify(qaStats))}catch(_){}
+      $('qaRes').innerHTML=`<b style="color:var(--ok)">Correct!</b> ${QA.label} is ${saltName(QA.c,QA.a)}, <b style="font-family:var(--mono);color:var(--amber)">${saltFormula(QA.c,QA.a)}</b>. <span style="color:var(--amber);letter-spacing:.1em">${'★'.repeat(stars)}${'☆'.repeat(3-stars)}</span> (${n} test${n===1?'':'s'}). Salts solved: ${qaStats.solved}.`;
+      complete('qa_id');if(n<=4)complete('qa_fast');if(qaStats.solved>=5)complete('qa_five');SFX.chime();qaRender();
+    }else{SFX.no();$('qaRes').innerHTML=`Not yet. Cation: ${okC?'<b style="color:var(--ok)">✓ right</b>':'<b style="color:var(--danger)">✗ wrong</b>'}. Anion: ${okA?'<b style="color:var(--ok)">✓ right</b>':'<b style="color:var(--danger)">✗ wrong</b>'}. Look at your results again, or do another test.`}
+  }
+});
+
+/* ----- per-frame ----- */
+function qaUpdate(dt){
+  if(G.mode!=='qa')return;
+  if(QA.seq){const s=QA.seq[QA.si];if(QA.st===0&&s.start)s.start();QA.st+=dt;const k=Math.min(1,QA.st/s.d);s.u&&s.u(k,dt);
+    if(k>=1){s.end&&s.end();QA.si++;QA.st=0;if(QA.si>=QA.seq.length){QA.seq=null;QA.busy=false;qaButtons()}}}
+  QA.L+=(QA.tL-QA.L)*Math.min(1,dt*4);qLiqCyl.scale.y=Math.max(.01,QA.L-.6);
+  QA.col.lerp(QA.tCol,Math.min(1,dt*2));QA.op+=(QA.tOp-QA.op)*Math.min(1,dt*2);
+  QA.ppt+=(QA.tPpt-QA.ppt)*Math.min(1,dt*(QA.tPpt>QA.ppt?2.2:1.1));
+  if(QA.brown)QA.brownK=Math.min(.3,QA.brownK+dt*.06);
+  const shown=QA.col.clone().lerp(QA.pptCol,Math.min(.75,QA.ppt*.62));if(QA.brownK)shown.lerp(BROWN,QA.brownK);
+  qLiqMat.color.copy(shown);qLiqMat.opacity=Math.min(.95,Math.max(QA.op,.3+QA.ppt*.55));
+  // precipitate particles
+  const want=Math.round(QA.ppt*100);let act=0;QP.forEach(p=>{if(p.on&&!p.fade)act++});
+  if(act<want)for(let i=0;i<Math.min(5,want-act);i++){const p=QP.get();p.on=true;p.fade=false;const a=rnd(0,6.28);p.r=Math.sqrt(Math.random())*.19;
+    p.m.position.set(Math.cos(a)*p.r,rnd(.55,Math.max(.6,QA.L-.06)),Math.sin(a)*p.r);p.vy=-rnd(.03,.1);p.top=Math.random()<.4;p.s=rnd(.016,.032);p.m.scale.setScalar(p.s);
+    p.m.material.color.copy(QA.pptCol);p.m.rotation.set(rnd(0,3),rnd(0,3),0);p.m.visible=true}
+  else if(act>want){let n=Math.min(4,act-want);QP.forEach(p=>{if(n>0&&p.on&&!p.fade){p.fade=true;n--}})}
+  QP.forEach(p=>{if(!p.on)return;const m=p.m;
+    if(p.fade){p.s*=Math.pow(.02,dt);m.scale.setScalar(p.s);if(p.s<.004){p.on=false;m.visible=false}return}
+    const floor=.6-Math.sqrt(Math.max(0,.0625-p.r*p.r))+.03;m.position.y=Math.max(floor,m.position.y+p.vy*dt);
+    if(QA.brown&&p.top)m.material.color.lerp(BROWN,dt*.35)});
+  // bubbles
+  if(QA.bubR>0){const n=QA.bubR*dt;let k=Math.floor(n)+(Math.random()<n%1?1:0);for(let i=0;i<k;i++){const b=QB.get();b.on=true;b.vy=rnd(.8,1.5);b.m.position.set(rnd(-.12,.12),.5,rnd(-.12,.12));b.m.scale.setScalar(rnd(.02,.04));b.m.visible=true}}
+  QB.forEach(b=>{if(!b.on)return;b.m.position.y+=b.vy*dt;if(b.m.position.y>=QA.L-.02){b.on=false;b.m.visible=false}});
+  if(QA.limeBub>0){const n=QA.limeBub*dt;let k=Math.floor(n)+(Math.random()<n%1?1:0);for(let i=0;i<k;i++){const b=LB.get();b.on=true;b.vy=rnd(.7,1.2);b.m.position.set(-1.35+rnd(-.04,.04),1.0,rnd(-.04,.04));b.m.scale.setScalar(rnd(.025,.045));b.m.visible=true}}
+  LB.forEach(b=>{if(!b.on)return;b.m.position.y+=b.vy*dt;b.m.position.x+=Math.sin(b.m.position.y*12)*.002;if(b.m.position.y>=1.88){b.on=false;b.m.visible=false}});
+  QA.limeMilk+=(QA.tLimeMilk-QA.limeMilk)*Math.min(1,dt*.9);
+  qLimeMat.color.set('#e6eef4').lerp(new THREE.Color('#f7f7f2'),QA.limeMilk);qLimeMat.opacity=.3+QA.limeMilk*.62;
+  QA.litmus+=(QA.tLitmus-QA.litmus)*Math.min(1,dt*1.4);qLitmus.material.color.copy(LITRED).lerp(LITBLUE,QA.litmus);
+  // Bunsen flame (with flame-test colour)
+  qBunFl.visible=QA.flame;
+  QA.tintS+=((QA.tint!=null?1:0)-QA.tintS)*Math.min(1,dt*5);
+  const tc=new THREE.Color(QA.tint!=null?QA.tint:0x5a6cff);
+  qBunFl.children.forEach((c,i)=>{c.material.color.copy(c.userData.c0).lerp(tc,QA.tintS*(i===0?1:.8));if(i===0)c.material.color.multiplyScalar(1-.25*QA.tintS);c.material.opacity=c.userData.op*(i===0?1+.5*QA.tintS:1-.6*QA.tintS);const w=1+QA.tintS*(i===0?.7:0);c.scale.set(w,(1+QA.tintS*(i===0?.25:0))*(1+Math.sin(performance.now()/40+i)*.03),w)});
+  qBunLight.intensity=QA.flame?.8+QA.tintS:0;qBunLight.color.set(0x7f8cff).lerp(tc,QA.tintS);
+  if(QA.bubR>20&&Math.random()<dt*6)noise(.12,.04,'bandpass',3500);
+}
 /* =====================================================================
    LOOP
    ===================================================================== */
@@ -2094,6 +2523,7 @@ function frame(now){
   step(sdt);
   updateVisuals(dt,sdt);
   heatUpdate(dt,sdt);
+  qaUpdate(dt);
   if(toastT>0){toastT-=dt;if(toastT<=0)$('toast').hidden=true}
   graphAcc+=dt;if(graphAcc>.2){graphAcc=0;drawGraph();drawTit();heatUI();updateReadouts();checkMissions()}
   renderer.render(scene,camera);
