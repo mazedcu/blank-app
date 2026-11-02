@@ -92,6 +92,9 @@ h1 b{color:var(--amber);font-weight:800}
 .x{background:var(--panel-2);border-radius:10px;width:32px;height:32px;flex:none}
 .obs{background:var(--panel-2);border-radius:10px;padding:7px 10px;line-height:1.4;font-weight:700}
 .obs span{color:var(--teal);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;display:block}
+.why summary{cursor:pointer;font-weight:800;color:var(--teal);font-size:.88rem}
+.why[open]{display:grid;gap:7px}
+.why p{margin:6px 0 0}
 .explain p{margin:0;line-height:1.5;color:#d4dcf0;font-weight:600;max-width:70ch}
 .eq{background:var(--bg);border-radius:10px;padding:8px 10px;display:grid;gap:4px}
 .eq .w{font-size:.88rem}
@@ -324,9 +327,9 @@ table.tt{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numer
           <button class="tst" id="qaNew">New unknown</button>
         </div>
         <div class="qa-salt" id="qaSalt"></div>
-        <div class="qa-lbl">Tests for the cation</div>
+        <div class="qa-lbl">Cation tests</div>
         <div class="tctrl" id="qaCatTests"></div>
-        <div class="qa-lbl">Tests for the anion</div>
+        <div class="qa-lbl">Anion tests</div>
         <div class="tctrl" id="qaAnTests"></div>
         <div class="qa-obs" id="qaObs"></div>
         <div class="ttable-wrap"><table class="tt qa-tt"><thead><tr><th>Test</th><th>Observation</th></tr></thead><tbody id="qaRows"></tbody></table></div>
@@ -423,11 +426,6 @@ table.tt{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numer
         </div>
         <div class="shelf" id="shelf"></div>
         <p class="note" id="tabNote"></p>
-      </div>
-      <div class="panel">
-        <h3>Lab notebook</h3>
-        <p class="log-empty" id="logEmpty">Your observations will appear here. Tap one to read it again.</p>
-        <ol class="log" id="log"></ol>
       </div>
       <p class="safety">Everything here is simulated. Real experiments like these are done by teachers, with goggles, small amounts and a safety screen. Never mix chemicals at home.</p>
     </div>
@@ -1038,17 +1036,13 @@ function explain(key,p,low){
 function showCard(e){
   $('explainHost').innerHTML=`<div class="explain ${e.warn?'warn':e.plain?'plain':''}" role="status">
     <div class="ex-top"><h2>${e.title}</h2>${e.isNew?'<span class="badge">New</span>':''}<button class="x" id="exX" aria-label="Close">✕</button></div>
-    <div class="obs"><span>You see</span>${e.obs}</div>
-    <p>${e.why}</p>
-    <div class="eq"><div class="w">${e.word}</div><div class="f">${e.sym}</div></div></div>`;
+    <div class="obs">${e.obs}</div>
+    <div class="eq"><div class="f">${e.sym}</div></div>
+    <details class="why"><summary>Why?</summary><p>${e.why}</p><div class="eq"><div class="w">${e.word}</div></div></details></div>`;
   $('exX').onclick=()=>{$('explainHost').innerHTML=''};
 }
 const fmtT=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
-function drawLog(){
-  $('logEmpty').hidden=EXP_LOG.length>0;
-  $('log').innerHTML=EXP_LOG.map((e,i)=>`<li><button data-i="${i}"><span class="tm">${fmtT(e.time)}</span><span class="${e.warn?'warn':''}">${e.title}</span></button></li>`).join('');
-}
-$('log').addEventListener('click',ev=>{const b=ev.target.closest('button');if(b){showCard(EXP_LOG[+b.dataset.i]);$('explainHost').scrollIntoView({behavior:'smooth',block:'nearest'})}});
+function drawLog(){}
 let toastT=0;
 function toast(t){const el=$('toast');el.textContent=t;el.hidden=false;el.style.animation='none';void el.offsetWidth;el.style.animation='';toastT=3.2}
 
@@ -2218,8 +2212,10 @@ const saltName=(c,a)=>`${QC[c].n} ${QAn[a].n}`;
 const solCol=c=>QC[c].sol||'#dfe9f5';
 const solWord=c=>QC[c].solW||'colourless';
 const QTESTS={
-  naoh:{k:'c',l:'NaOH(aq), then excess',row:'Aqueous NaOH, then excess'},
-  nh3:{k:'c',l:'NH₃(aq), then excess',row:'Aqueous NH₃, then excess'},
+  naoh:{k:'c',l:'NaOH(aq): a few drops',row:'Aqueous NaOH'},
+  naohx:{k:'c',l:'NaOH(aq): excess',row:'Aqueous NaOH',x:1},
+  nh3:{k:'c',l:'NH₃(aq): a few drops',row:'Aqueous NH₃'},
+  nh3x:{k:'c',l:'NH₃(aq): excess',row:'Aqueous NH₃',x:1},
   warm:{k:'c',l:'Warm with NaOH + damp litmus',row:'Warm with NaOH(aq); damp red litmus'},
   flame:{k:'c',l:'Flame test',row:'Flame test'},
   acid:{k:'a',l:'Dilute HCl, gas → limewater',row:'Dilute acid; gas into limewater'},
@@ -2229,7 +2225,7 @@ const QTESTS={
   al:{k:'a',l:'NaOH + Al foil, warm + litmus',row:'NaOH(aq) + Al foil, warm; damp red litmus'},
 };
 function pptSig(r){return r?r.p+(r.ex?'+':'')+(r.brown?'b':''):'none'}
-function candidates(key){const sig=pptSig(QC[QA.c][key]);return Object.keys(QC).filter(k=>pptSig(QC[k][key])===sig&&!(key==='naoh'&&QC[k].amm!==QC[QA.c].amm))}
+function candidates(key){const sig=pptSig(QC[QA.c][key]);return Object.keys(QC).filter(k=>pptSig(QC[k][key])===sig)}
 const ionList=ks=>{const a=ks.map(k=>QC[k].ion);return a.length>1?a.slice(0,-1).join(', ')+' or '+a[a.length-1]:a[0]};
 function pptSentence(r,ex){
   if(!r)return'No precipitate.';
@@ -2242,11 +2238,11 @@ function qaObs(test){
   const c=QA.c,a=QA.a,C=QC[c],A=QAn[a];
   const fizz=A.acid?'Fizzing when the acid is added. ':'';
   switch(test){
-  case'naoh':case'nh3':{const r=C[test];const cand=candidates(test);
-    const ohN=C.ch===1?'':C.ch;
-    return{obs:pptSentence(r,true)+(C.amm&&test==='naoh'?' (Warm it to test for ammonia.)':''),
-      eq:r&&r.p!=='slight'?`${C.ion}(aq) + ${ohN}OH⁻(aq) → ${C.f}(OH)${SUBD[C.ch]}(s)`:'',
-      means:cand.length===1?`Only ${C.ion} gives this result.`:`Could be ${ionList(cand)}. ${test==='naoh'?'Try aqueous ammonia, a flame test or warming.':'Compare with your NaOH result.'}`};}
+  case'naoh':case'nh3':{const r=C[test];
+    return{obs:!r?'No precipitate.':r.p==='slight'?'No precipitate, or a very slight white one.':`${aAn(PPTC[r.p][0])} ${PPTC[r.p][0]} precipitate.`,means:''};}
+  case'naohx':case'nh3x':{const base=test.slice(0,-1),r=C[base],cand=candidates(base);
+    const o=!r?'Still no precipitate.':r.p==='slight'?'No change.':(r.ex?`The precipitate dissolves, giving a ${r.exW||'colourless'} solution.`:'The precipitate does not dissolve.')+(r.brown?' On standing, it turns brown at the surface.':'');
+    return{obs:o,means:cand.length===1?`Only ${C.ion} gives this.`:`Could be ${ionList(cand)}.`};}
   case'warm':return C.amm?{obs:'A gas is given off that turns damp red litmus paper blue: ammonia.',eq:'NH₄⁺(aq) + OH⁻(aq) → NH₃(g) + H₂O(l)',means:'Only ammonium ions give ammonia when warmed with NaOH alone.'}
     :{obs:(C.naoh?pptSentence(C.naoh,false)+' ':'')+'No ammonia: the damp red litmus paper stays red.',eq:'',means:'Not an ammonium salt.'};
   case'flame':return C.flame?{obs:`${cap(C.flame[0])} flame.`,eq:`${C.ion} → ${C.flame[0]} flame`,means:`A ${C.flame[0]} flame shows ${C.ion} ions.`}
@@ -2331,7 +2327,7 @@ function qaReset(){
   QA.tCol.set(solCol(QA.c));QA.col.copy(QA.tCol);QA.op=QA.tOp=QC[QA.c].sol?.72:.32;QA.L=QA.tL=1.85;
   QA.ppt=QA.tPpt=0;QP.clear();QB.clear();LB.clear();QA.brown=false;QA.brownK=0;QA.bubR=0;QA.limeBub=0;
   QA.litmus=QA.tLitmus=0;qLitmus.visible=false;qRig.visible=false;QA.limeMilk=QA.tLimeMilk=0;qFoil.visible=false;
-  QA.flame=false;QA.tint=null;qTube.position.set(0,0,0);qTube.rotation.z=0;qDropper.visible=false;qStream.visible=false;qDrops.forEach(d=>d.visible=false);qWire.visible=false;
+  QA.flame=false;QA.tint=null;QA.pend=null;qTube.position.set(0,0,0);qTube.rotation.z=0;qDropper.visible=false;qStream.visible=false;qDrops.forEach(d=>d.visible=false);qWire.visible=false;
 }
 const qStep=(d,u,end,start)=>({d,u,end,start});
 function qDrops4(dl,col,onEnd){
@@ -2353,12 +2349,15 @@ function qFromFlame(){return qStep(1.1,k=>{const up=ease(Math.min(1,k/.3)),ac=ea
 function qaRun(test){
   if(QA.busy||!qaOK(QA.c,QA.a))return;audio();
   const C=QC[QA.c],A=QAn[QA.a];
+  if(QTESTS[test].x&&QA.pend!==test.slice(0,-1)){toast('Add a few drops first, then add excess.');return}
   const S=[qStep(.5,null,null,qaReset)];
   if(test==='naoh'||test==='nh3'){const r=C[test];
-    S.push(qDrops4(.08,'#eef3fa',()=>{if(r){QA.pptCol.set(PPTC[r.p][1]);QA.tPpt=r.p==='slight'?.15:1}}));
-    S.push(qWait(1.2));
+    if(QA.pend===test)S.length=0;
+    S.push(qDrops4(.06,'#eef3fa',()=>{if(r){QA.pptCol.set(PPTC[r.p][1]);QA.tPpt=r.p==='slight'?.15:1;if(r.brown)QA.brown=true}}));
+    S.push(qWait(.7));
+  }else if(test==='naohx'||test==='nh3x'){const r=C[test.slice(0,-1)];S.length=0;
     S.push(qPour(.45,'#eef3fa',()=>{if(r&&r.ex){QA.tPpt=0;QA.tCol.set(r.exCol||'#e3ecf6');QA.tOp=r.exCol?.85:.3}}));
-    S.push(qWait(r&&r.brown?3:1.4,k=>{if(r&&r.brown&&k>.15)QA.brown=true}));
+    S.push(qWait(1.2));
   }else if(test==='warm'||test==='al'){
     const amm=C.amm||(test==='al'&&A.al);
     S.push(qDrops4(.12,'#eef3fa',()=>{const r=C.naoh;if(r){QA.pptCol.set(PPTC[r.p][1]);QA.tPpt=r.p==='slight'?.15:.9}}));
@@ -2394,14 +2393,17 @@ function qaRun(test){
   }
   S.push(qStep(.05,null,()=>qaDone(test)));
   QA.seq=S;QA.si=0;QA.st=0;QA.busy=true;QA._dec=false;qaButtons();
-  $('qaObs').innerHTML=`<span class="t">${QTESTS[test].row}</span><span class="m">Watch the test tube…</span>`;
+  $('qaObs').innerHTML=`<span class="t">${QTESTS[test].l}</span><span class="m">Watch the test tube…</span>`;
 }
 function qaDone(test){
   const r=qaObs(test);
-  const i=QA.rows.findIndex(x=>x.test===test);const row={test,obs:r.obs};if(i>=0)QA.rows[i]=row;else QA.rows.push(row);
-  QA.used.add(test);
+  const base=QTESTS[test].x?test.slice(0,-1):test;
+  let obs=r.obs;
+  if(base==='naoh'||base==='nh3'){if(QTESTS[test].x){obs=`A few drops: ${QA.dropObs} Excess: ${r.obs}`;QA.pend=null}else{QA.dropObs=r.obs;QA.pend=base;obs=`A few drops: ${r.obs}`}}
+  const i=QA.rows.findIndex(x=>x.test===base);const row={test:base,obs};if(i>=0)QA.rows[i]=row;else QA.rows.push(row);
+  QA.used.add(base);
   const exp=QA.mode==='exp';
-  $('qaObs').innerHTML=`<span class="t">${QTESTS[test].row}</span><span class="o">${r.obs}</span>`+(exp&&r.means?`<span class="m">${r.means}</span>`:'')+(exp&&r.eq?`<span class="e">${r.eq}</span>`:'');
+  $('qaObs').innerHTML=`<span class="t">${QTESTS[test].row}</span><span class="o">${r.obs}</span>`+(exp&&r.means?`<span class="m">${r.means}</span>`:'');
   qaRender();
 }
 
@@ -2415,25 +2417,25 @@ function qaRender(){
     $('qaCats').innerHTML=chipsHTML(QC,QA.c,null,'qc');
     $('qaAns').innerHTML=chipsHTML(QAn,QA.a,null,'qa');
     const ok=qaOK(QA.c,QA.a),sw=$('qaSalt');sw.classList.toggle('warn',!ok);
-    sw.innerHTML=ok?`<i class="sw" style="background:${solCol(QA.c)}"></i><div><b>${cap(saltName(QA.c,QA.a))} · <span style="font-family:var(--mono);color:var(--amber);font-size:1rem">${saltFormula(QA.c,QA.a)}</span></b><span>${cap(solWord(QA.c))} solution. Pick a test below.</span></div>`
+    sw.innerHTML=ok?`<i class="sw" style="background:${solCol(QA.c)}"></i><div><b>${cap(saltName(QA.c,QA.a))} · <span style="font-family:var(--mono);color:var(--amber);font-size:1rem">${saltFormula(QA.c,QA.a)}</span></b><span>${cap(solWord(QA.c))} solution</span></div>`
       :`<div><b>Can't make this solution</b><span>${qaWhyNot(QA.c,QA.a)}</span></div>`;
   }else{
     $('qaUnkName').textContent=QA.label;
-    $('qaUnkDesc').textContent=`A ${solWord(QA.c)} solution. Use tests to find its cation and anion.`;
+    $('qaUnkDesc').textContent=`${cap(solWord(QA.c))} solution`;
     $('qaUsed').textContent=QA.used.size;
     $('qaSalt').innerHTML=`<i class="sw" style="background:${solCol(QA.c)}"></i><div><b>${QA.label}: ${QA.solved?saltFormula(QA.c,QA.a):'?'}</b><span>${QA.solved?cap(saltName(QA.c,QA.a)):'Identity unknown'}</span></div>`;
     $('qaSalt').classList.remove('warn');
     $('qaGC').innerHTML=chipsHTML(QC,QA.gsel.c,null,'gc');
     $('qaGA').innerHTML=chipsHTML(QAn,QA.gsel.a,null,'ga');
   }
-  const btn=(k)=>Object.keys(QTESTS).filter(t=>QTESTS[t].k===k).map(t=>`<button class="tst qt${QA.used.has(t)?' on':''}" data-qt="${t}">${QTESTS[t].l}</button>`).join('');
+  const btn=(k)=>Object.keys(QTESTS).filter(t=>QTESTS[t].k===k).map(t=>`<button class="tst qt${QA.used.has(t)&&!QTESTS[t].x?' on':''}" data-qt="${t}">${QTESTS[t].l}</button>`).join('');
   $('qaCatTests').innerHTML=btn('c');$('qaAnTests').innerHTML=btn('a');
-  $('qaRows').innerHTML=QA.rows.length?QA.rows.map(r=>`<tr><td>${QTESTS[r.test].row}</td><td>${r.obs}</td></tr>`).join(''):'<tr><td colspan="2" style="color:var(--muted)">No tests yet. Each test uses a fresh portion of the solution.</td></tr>';
+  $('qaRows').innerHTML=QA.rows.length?QA.rows.map(r=>`<tr><td>${QTESTS[r.test].row}</td><td>${r.obs}</td></tr>`).join(''):'<tr><td colspan="2" style="color:var(--muted)">No tests yet.</td></tr>';
   qaButtons();
 }
 function qaButtons(){
   const ok=qaOK(QA.c,QA.a);
-  document.querySelectorAll('#qaPanel [data-qt]').forEach(b=>b.disabled=QA.busy||!ok);
+  document.querySelectorAll('#qaPanel [data-qt]').forEach(b=>{const x=QTESTS[b.dataset.qt].x;b.disabled=QA.busy||!ok||(x&&QA.pend!==b.dataset.qt.slice(0,-1));b.classList.toggle('rec',!!x&&!b.disabled)});
   document.querySelectorAll('#qaPanel [data-qc],#qaPanel [data-qa],#qaPanel [data-qm],#qaNew').forEach(b=>b.disabled=QA.busy);
 }
 function qaSetSalt(c,a){QA.c=c;QA.a=a;QA.rows=[];QA.used=new Set();$('qaObs').innerHTML='';qaReset();qaRender()}
@@ -2446,7 +2448,6 @@ function qaNewUnknown(){
 }
 function qaEnter(){
   if(QA.mode==='game'&&!QA.gameN)qaNewUnknown();else{qaReset();qaRender()}
-  explainForce('qa_intro');
 }
 HEXP.qa_intro=()=>({title:'Salt analysis',obs:'A test tube of salt solution stands in the rack, with a Bunsen burner for warming and flame tests.',
   why:'A salt is made of a positive ion (the cation: a metal or ammonium) and a negative ion (the anion). Each test uses a fresh portion of the solution. Sodium hydroxide and ammonia solutions are added a few drops at a time, then in excess. Match what you see with the qualitative analysis notes. In Game mode, identify the unknown salt using as few tests as you can.',
